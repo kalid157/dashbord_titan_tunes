@@ -1,0 +1,6 @@
+{
+  "name": "Titan Tunes - Admin Dashboard",
+  "description": "Dashboard d'administration Titan Tunes pour la gestion des chansons, playlists, albums et notifications avec API REST complète.",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}
