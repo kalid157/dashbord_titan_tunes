@@ -25,6 +25,8 @@ import {
   CheckCircle,
   RefreshCw,
   Zap,
+  ChevronLeft,
+  LayoutGrid,
 } from 'lucide-react';
 import { api } from '../services/api';
 
@@ -60,6 +62,15 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
   );
   const [testedPlays, setTestedPlays] = useState<{ trackingIdSong: string; count: number } | null>(null);
   const [loadingPlays, setLoadingPlays] = useState(false);
+
+  // Pagination for Catalogue Complet (2 rows of 6 cards = 12 items)
+  const [dashboardSongsPage, setDashboardSongsPage] = useState(1);
+  const songsPerPage = 12;
+  const totalDashboardPages = Math.max(1, Math.ceil(songs.length / songsPerPage));
+  const paginatedDashboardSongs = songs.slice(
+    (dashboardSongsPage - 1) * songsPerPage,
+    dashboardSongsPage * songsPerPage
+  );
 
   const fetchMostLiked = async () => {
     setLoadingMostLiked(true);
@@ -439,6 +450,168 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
               <span className="font-bold font-mono">{stats.totalPlays.toLocaleString()} écoutes globales</span>
             </div>
           </div>
+        </div>
+
+        {/* ======================================================== */}
+        {/* SECTION: CATALOGUE COMPLET DES MORCEAUX (GRILLE 6 COLONNES & 2 LIGNES) */}
+        {/* ======================================================== */}
+        <div className="space-y-3 pt-2">
+          <div className="flex items-center justify-between px-1">
+            <div className="flex items-center gap-2">
+              <div className="w-6 h-6 rounded-lg bg-purple-50 dark:bg-purple-950/40 text-[#6B4EFF] flex items-center justify-center">
+                <Music size={14} />
+              </div>
+              <h3 className="text-xs font-semibold text-gray-700 dark:text-gray-300 uppercase tracking-wider">
+                Catalogue complet ({songs.length} morceaux)
+              </h3>
+            </div>
+
+            <div className="flex items-center gap-2">
+              <span className="text-[11px] text-gray-500 dark:text-gray-400 hidden sm:inline">
+                Page {dashboardSongsPage} / {totalDashboardPages} (2 lignes / page)
+              </span>
+              <button
+                onClick={() => onNavigate('manage_songs')}
+                className="text-xs text-[#FF8A00] hover:text-orange-600 font-bold flex items-center gap-1 transition cursor-pointer"
+              >
+                <span>Gérer les morceaux</span>
+                <ChevronRight size={14} />
+              </button>
+            </div>
+          </div>
+
+          {songs.length === 0 ? (
+            <div className="p-8 text-center bg-white dark:bg-[#111827] rounded-2xl border border-gray-150 dark:border-gray-800">
+              <Music className="mx-auto text-gray-300 dark:text-gray-600 mb-2" size={28} />
+              <p className="text-xs font-semibold text-gray-600 dark:text-gray-300">Aucun morceau dans le catalogue</p>
+            </div>
+          ) : (
+            <div className="space-y-3">
+              <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-6 gap-2.5">
+                {paginatedDashboardSongs.map((song) => (
+                  <div
+                    key={song.trackingIdSong}
+                    className="bg-white dark:bg-[#111827] p-3 rounded-2xl border border-gray-150 dark:border-gray-800 shadow-xs hover:border-orange-300 dark:hover:border-orange-500/40 hover:shadow-md transition text-left group relative flex flex-col justify-between"
+                  >
+                    {/* Top Bar (Genre/Catégorie à gauche, icône colorée à droite comme dans le screenshot) */}
+                    <div className="flex items-center justify-between text-gray-500 dark:text-gray-400 text-xs font-medium mb-2">
+                      <span className="truncate max-w-[85px] text-[11px] font-semibold text-gray-600 dark:text-gray-300">
+                        {song.nomCategorie || song.genre || 'Morceau'}
+                      </span>
+                      <div className="w-6 h-6 rounded-lg bg-purple-50 dark:bg-purple-950/40 flex items-center justify-center text-[#6B4EFF] shrink-0 group-hover:scale-110 transition-transform">
+                        <Music size={12} />
+                      </div>
+                    </div>
+
+                    {/* Artwork & Play button */}
+                    <div className="relative aspect-square w-full rounded-xl overflow-hidden bg-gray-100 dark:bg-gray-800 mb-2 group/thumb shadow-2xs">
+                      <img
+                        src={song.imageAlbum}
+                        alt={song.titre}
+                        className="w-full h-full object-cover group-hover/thumb:scale-105 transition-transform duration-300"
+                        onError={(e) => {
+                          (e.target as HTMLImageElement).src =
+                            'https://images.unsplash.com/photo-1511671782779-c97d3d27a1d4?auto=format&fit=crop&w=300&q=80';
+                        }}
+                      />
+                      <button
+                        type="button"
+                        onClick={() => onPlaySong && onPlaySong(song)}
+                        className="absolute inset-0 bg-black/40 backdrop-blur-[1px] opacity-0 group-hover:opacity-100 flex items-center justify-center transition cursor-pointer"
+                        title="Écouter"
+                      >
+                        <div className="w-10 h-10 rounded-full bg-[#FF8A00] text-white flex items-center justify-center shadow-lg transform group-hover:scale-110 transition">
+                          <Play size={18} fill="white" className="ml-0.5" />
+                        </div>
+                      </button>
+                      <span className="absolute bottom-1 right-1 px-1.5 py-0.5 rounded bg-black/70 text-[9px] font-mono text-white/90">
+                        {song.duree || '3:20'}
+                      </span>
+                    </div>
+
+                    {/* Main Title & Artist */}
+                    <div className="min-w-0">
+                      <h4
+                        className="text-xs font-bold text-gray-900 dark:text-white truncate group-hover:text-[#FF8A00] transition"
+                        title={song.titre}
+                      >
+                        {song.titre}
+                      </h4>
+                      <p className="text-[11px] text-gray-500 dark:text-gray-400 truncate mt-0.5">
+                        {song.artiste}
+                      </p>
+                    </div>
+
+                    {/* Bottom Metatag (Exactement le style coloré du screenshot) */}
+                    <div className="mt-2.5 pt-2 border-t border-gray-100 dark:border-gray-800/80 flex items-center justify-between">
+                      <div className="text-[10px] text-emerald-600 dark:text-emerald-400 font-semibold flex items-center gap-1 truncate">
+                        <TrendingUp size={11} className="shrink-0 text-emerald-500" />
+                        <span className="truncate">{(song.plays || 0).toLocaleString()} écoutes</span>
+                      </div>
+
+                      <button
+                        type="button"
+                        onClick={() => onPlaySong && onPlaySong(song)}
+                        className="p-1 rounded-lg text-gray-400 hover:text-[#FF8A00] hover:bg-orange-50 dark:hover:bg-orange-950/30 transition cursor-pointer"
+                        title="Lire"
+                      >
+                        <Play size={12} />
+                      </button>
+                    </div>
+                  </div>
+                ))}
+              </div>
+
+              {/* Pagination Controls après 2 lignes */}
+              {totalDashboardPages > 1 && (
+                <div className="flex flex-wrap items-center justify-between gap-2 p-2.5 bg-white dark:bg-[#111827] rounded-xl border border-gray-150 dark:border-gray-800 text-xs">
+                  <span className="text-gray-500 dark:text-gray-400 text-[11px]">
+                    Affichage de {(dashboardSongsPage - 1) * songsPerPage + 1} à{' '}
+                    {Math.min(dashboardSongsPage * songsPerPage, songs.length)} sur {songs.length} morceaux
+                  </span>
+
+                  <div className="flex items-center gap-1.5">
+                    <button
+                      type="button"
+                      onClick={() => setDashboardSongsPage((p) => Math.max(1, p - 1))}
+                      disabled={dashboardSongsPage === 1}
+                      className="px-2.5 py-1 rounded-lg border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800 text-[11px] font-semibold text-gray-700 dark:text-gray-200 hover:bg-gray-50 dark:hover:bg-gray-700 disabled:opacity-40 transition flex items-center gap-1 cursor-pointer"
+                    >
+                      <ChevronLeft size={12} />
+                      <span>Précédent</span>
+                    </button>
+
+                    <div className="flex items-center gap-1">
+                      {Array.from({ length: totalDashboardPages }, (_, i) => i + 1).map((pNum) => (
+                        <button
+                          key={pNum}
+                          type="button"
+                          onClick={() => setDashboardSongsPage(pNum)}
+                          className={`w-6 h-6 rounded-lg text-[11px] font-bold transition cursor-pointer flex items-center justify-center ${
+                            dashboardSongsPage === pNum
+                              ? 'bg-[#FF8A00] text-white shadow-xs'
+                              : 'bg-gray-100 dark:bg-gray-800 text-gray-600 dark:text-gray-300'
+                          }`}
+                        >
+                          {pNum}
+                        </button>
+                      ))}
+                    </div>
+
+                    <button
+                      type="button"
+                      onClick={() => setDashboardSongsPage((p) => Math.min(totalDashboardPages, p + 1))}
+                      disabled={dashboardSongsPage === totalDashboardPages}
+                      className="px-2.5 py-1 rounded-lg border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800 text-[11px] font-semibold text-gray-700 dark:text-gray-200 hover:bg-gray-50 dark:hover:bg-gray-700 disabled:opacity-40 transition flex items-center gap-1 cursor-pointer"
+                    >
+                      <span>Suivant</span>
+                      <ChevronRight size={12} />
+                    </button>
+                  </div>
+                </div>
+              )}
+            </div>
+          )}
         </div>
 
         {/* SWAGGER ENDPOINTS COMPLETE GUIDE CHIPS (Hidden by default for simplicity!) */}

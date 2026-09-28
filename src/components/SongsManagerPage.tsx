@@ -21,6 +21,11 @@ import {
   Disc,
   Shuffle,
   Repeat,
+  LayoutGrid,
+  ListFilter,
+  ChevronLeft,
+  ChevronRight,
+  TrendingUp,
 } from 'lucide-react';
 import { api } from '../services/api';
 import { Song, Playlist, Album, Category } from '../types';
@@ -50,6 +55,11 @@ export const SongsManagerPage: React.FC<SongsManagerPageProps> = ({
 }) => {
   const [searchQuery, setSearchQuery] = useState('');
   const [selectedGenre, setSelectedGenre] = useState('all');
+
+  // View & Pagination state (2 rows = 12 items on 6-col grid)
+  const [viewMode, setViewMode] = useState<'grid' | 'list'>('grid');
+  const [currentPage, setCurrentPage] = useState(1);
+  const itemsPerPage = 12; // Exactly 2 rows of 6 cards!
 
   // Modals state
   const [editingSong, setEditingSong] = useState<Song | null>(null);
@@ -94,6 +104,16 @@ export const SongsManagerPage: React.FC<SongsManagerPageProps> = ({
     const matchesGenre = selectedGenre === 'all' || s.genre === selectedGenre || s.nomCategorie === selectedGenre;
     return matchesSearch && matchesGenre;
   });
+
+  // Calculate 2-row pagination
+  const totalPages = Math.max(1, Math.ceil(filteredSongs.length / itemsPerPage));
+  const startIndex = (currentPage - 1) * itemsPerPage;
+  const paginatedSongs = filteredSongs.slice(startIndex, startIndex + itemsPerPage);
+
+  // Auto-correct currentPage if filters shrink the list
+  React.useEffect(() => {
+    setCurrentPage(1);
+  }, [searchQuery, selectedGenre]);
 
   const genres = Array.from(new Set(songs.map((s) => s.genre || s.nomCategorie).filter(Boolean)));
 
@@ -328,26 +348,264 @@ export const SongsManagerPage: React.FC<SongsManagerPageProps> = ({
         </div>
       )}
 
-      {/* Songs list */}
-      <div className="space-y-2">
-        {filteredSongs.length === 0 ? (
-          <div className="text-center py-12 bg-white rounded-2xl border border-gray-100 p-6">
-            <Music className="mx-auto text-gray-300 mb-2" size={32} />
-            <p className="text-sm font-semibold text-gray-700">Aucune chanson trouvée</p>
-            <p className="text-xs text-gray-400 mt-1">
-              Essayez un autre mot-clé ou ajoutez un nouveau morceau
-            </p>
+      {/* Display Controls & View Switcher */}
+      <div className="flex flex-wrap items-center justify-between gap-2 px-1">
+        <div className="flex items-center gap-2">
+          <span className="text-xs font-semibold text-gray-700 dark:text-gray-300">
+            Affichage du catalogue :
+          </span>
+          <div className="inline-flex p-0.5 rounded-xl bg-gray-100 dark:bg-gray-800 border border-gray-200 dark:border-gray-700 text-xs">
+            <button
+              type="button"
+              onClick={() => setViewMode('grid')}
+              className={`px-2.5 py-1 rounded-lg font-medium transition cursor-pointer flex items-center gap-1.5 ${
+                viewMode === 'grid'
+                  ? 'bg-white dark:bg-[#111827] text-[#FF8A00] shadow-xs font-bold'
+                  : 'text-gray-500 hover:text-gray-900 dark:text-gray-400 dark:hover:text-white'
+              }`}
+              title="Affichage en cartes horizontales (comme les statistiques)"
+            >
+              <LayoutGrid size={13} />
+              <span>Grille (Screenshot)</span>
+            </button>
+            <button
+              type="button"
+              onClick={() => setViewMode('list')}
+              className={`px-2.5 py-1 rounded-lg font-medium transition cursor-pointer flex items-center gap-1.5 ${
+                viewMode === 'list'
+                  ? 'bg-white dark:bg-[#111827] text-[#FF8A00] shadow-xs font-bold'
+                  : 'text-gray-500 hover:text-gray-900 dark:text-gray-400 dark:hover:text-white'
+              }`}
+              title="Affichage en liste étendue"
+            >
+              <ListFilter size={13} />
+              <span>Liste</span>
+            </button>
           </div>
-        ) : (
-          filteredSongs.map((song) => {
-            const currentPlays = songPlaysMap[song.trackingIdSong] !== undefined
-              ? songPlaysMap[song.trackingIdSong]
-              : song.plays || 0;
+        </div>
+
+        {/* 2 lines pagination indicator */}
+        <div className="flex items-center gap-2 text-xs text-gray-500 dark:text-gray-400">
+          <span className="hidden sm:inline">Rangement :</span>
+          <span className="font-semibold text-gray-700 dark:text-gray-200 bg-orange-50 dark:bg-orange-950/40 text-orange-700 dark:text-orange-300 px-2 py-0.5 rounded-md border border-orange-200/50">
+            2 lignes par page ({itemsPerPage} titres)
+          </span>
+        </div>
+      </div>
+
+      {/* Songs View */}
+      {filteredSongs.length === 0 ? (
+        <div className="text-center py-12 bg-white dark:bg-[#111827] rounded-2xl border border-gray-150 dark:border-gray-800 p-6">
+          <Music className="mx-auto text-gray-300 dark:text-gray-600 mb-2" size={32} />
+          <p className="text-sm font-semibold text-gray-700 dark:text-gray-200">Aucune chanson trouvée</p>
+          <p className="text-xs text-gray-400 dark:text-gray-500 mt-1">
+            Essayez un autre mot-clé ou ajoutez un nouveau morceau
+          </p>
+        </div>
+      ) : viewMode === 'grid' ? (
+        /* ======================================================== */
+        /* VUE GRILLE : CARTES RANGÉES COMME LE SCREENSHOT (6 COLONNES) */
+        /* ======================================================== */
+        <div className="space-y-4">
+          <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-6 gap-2.5">
+            {paginatedSongs.map((song) => {
+              const currentPlays =
+                songPlaysMap[song.trackingIdSong] !== undefined
+                  ? songPlaysMap[song.trackingIdSong]
+                  : song.plays || 0;
+
+              return (
+                <div
+                  key={song.trackingIdSong}
+                  className="bg-white dark:bg-[#111827] p-3 rounded-2xl border border-gray-150 dark:border-gray-800 shadow-xs hover:border-orange-300 dark:hover:border-orange-500/40 hover:shadow-md transition group text-left relative flex flex-col justify-between"
+                >
+                  {/* Top Bar (Genre/Catégorie à gauche, icône colorée à droite comme dans le screenshot) */}
+                  <div className="flex items-center justify-between text-gray-500 dark:text-gray-400 text-xs font-medium mb-2">
+                    <span className="truncate max-w-[85px] text-[11px] font-semibold text-gray-600 dark:text-gray-300">
+                      {song.nomCategorie || song.genre || 'Morceau'}
+                    </span>
+                    <div className="w-6 h-6 rounded-lg bg-purple-50 dark:bg-purple-950/40 flex items-center justify-center text-[#6B4EFF] shrink-0 group-hover:scale-110 transition-transform">
+                      <Music size={12} />
+                    </div>
+                  </div>
+
+                  {/* Artwork & Play button */}
+                  <div className="relative aspect-square w-full rounded-xl overflow-hidden bg-gray-100 dark:bg-gray-800 mb-2 group/thumb shadow-2xs">
+                    <img
+                      src={song.imageAlbum}
+                      alt={song.titre}
+                      className="w-full h-full object-cover group-hover/thumb:scale-105 transition-transform duration-300"
+                      onError={(e) => {
+                        (e.target as HTMLImageElement).src =
+                          'https://images.unsplash.com/photo-1511671782779-c97d3d27a1d4?auto=format&fit=crop&w=300&q=80';
+                      }}
+                    />
+                    <button
+                      type="button"
+                      onClick={() => onPlaySong(song)}
+                      className="absolute inset-0 bg-black/40 backdrop-blur-[1px] opacity-0 group-hover:opacity-100 flex items-center justify-center transition cursor-pointer"
+                      title="Lire ce titre"
+                    >
+                      <div className="w-10 h-10 rounded-full bg-[#FF8A00] text-white flex items-center justify-center shadow-lg transform group-hover:scale-110 transition">
+                        <Play size={18} fill="white" className="ml-0.5" />
+                      </div>
+                    </button>
+                    {/* Duration badge */}
+                    <span className="absolute bottom-1 right-1 px-1.5 py-0.5 rounded bg-black/70 text-[9px] font-mono text-white/90">
+                      {song.duree || '3:20'}
+                    </span>
+                  </div>
+
+                  {/* Main Title & Artist (gras comme les valeurs du screenshot) */}
+                  <div className="min-w-0">
+                    <h4
+                      className="text-xs font-bold text-gray-900 dark:text-white truncate group-hover:text-[#FF8A00] transition"
+                      title={song.titre}
+                    >
+                      {song.titre}
+                    </h4>
+                    <p className="text-[11px] text-gray-500 dark:text-gray-400 truncate mt-0.5">
+                      {song.artiste}
+                    </p>
+                  </div>
+
+                  {/* Bottom Metatag (Exactement le style coloré du bas de carte du screenshot) */}
+                  <div className="mt-2.5 pt-2 border-t border-gray-100 dark:border-gray-800/80 flex items-center justify-between">
+                    <div className="text-[10px] text-emerald-600 dark:text-emerald-400 font-semibold flex items-center gap-1 truncate">
+                      <TrendingUp size={11} className="shrink-0 text-emerald-500" />
+                      <span className="truncate">{currentPlays.toLocaleString()} écoutes</span>
+                    </div>
+
+                    <button
+                      type="button"
+                      onClick={() => handleRefreshPlays(song.trackingIdSong)}
+                      className="text-gray-400 hover:text-purple-600 dark:hover:text-purple-400 p-0.5 transition"
+                      title="Actualiser les écoutes"
+                    >
+                      <RefreshCw size={10} className={loadingPlaysId === song.trackingIdSong ? 'animate-spin' : ''} />
+                    </button>
+                  </div>
+
+                  {/* Quick Card Toolbar Actions */}
+                  <div className="flex items-center justify-between mt-2 pt-1.5 border-t border-gray-100 dark:border-gray-800/60 text-gray-400 dark:text-gray-500">
+                    <button
+                      type="button"
+                      onClick={() => onPlaySong(song)}
+                      className="p-1 hover:text-[#FF8A00] hover:bg-orange-50 dark:hover:bg-orange-950/30 rounded-lg transition"
+                      title="Écouter"
+                    >
+                      <Play size={13} />
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => handleInspectPlaylists(song)}
+                      className="p-1 hover:text-purple-600 hover:bg-purple-50 dark:hover:bg-purple-950/30 rounded-lg transition"
+                      title="Playlists"
+                    >
+                      <ListMusic size={13} />
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => handleOpenUpdateAudio(song)}
+                      className="p-1 hover:text-blue-600 hover:bg-blue-50 dark:hover:bg-blue-950/30 rounded-lg transition"
+                      title="Remplacer audio"
+                    >
+                      <FileAudio size={13} />
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => handleOpenEdit(song)}
+                      className="p-1 hover:text-emerald-600 hover:bg-emerald-50 dark:hover:bg-emerald-950/30 rounded-lg transition"
+                      title="Modifier métadonnées"
+                    >
+                      <Edit2 size={13} />
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => setDeleteTarget(song)}
+                      className="p-1 hover:text-red-600 hover:bg-red-50 dark:hover:bg-red-950/30 rounded-lg transition"
+                      title="Supprimer"
+                    >
+                      <Trash2 size={13} />
+                    </button>
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+
+          {/* ======================================================== */}
+          {/* BARRE DE PAGINATION APRÈS 2 LIGNES */}
+          {/* ======================================================== */}
+          {totalPages > 1 && (
+            <div className="flex flex-wrap items-center justify-between gap-3 p-3 bg-white dark:bg-[#111827] rounded-2xl border border-gray-150 dark:border-gray-800 shadow-xs mt-4">
+              <div className="text-xs text-gray-500 dark:text-gray-400">
+                Affichage de <strong className="text-gray-900 dark:text-white">{startIndex + 1}</strong> à{' '}
+                <strong className="text-gray-900 dark:text-white">
+                  {Math.min(startIndex + itemsPerPage, filteredSongs.length)}
+                </strong>{' '}
+                sur <strong className="text-gray-900 dark:text-white">{filteredSongs.length}</strong> morceaux
+                <span className="ml-1 text-[11px] text-orange-600 dark:text-orange-400 font-medium">
+                  (2 lignes / page)
+                </span>
+              </div>
+
+              <div className="flex items-center gap-1.5">
+                <button
+                  type="button"
+                  onClick={() => setCurrentPage((p) => Math.max(1, p - 1))}
+                  disabled={currentPage === 1}
+                  className="px-3 py-1.5 rounded-xl border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800 text-xs font-semibold text-gray-700 dark:text-gray-200 hover:bg-gray-50 dark:hover:bg-gray-700 disabled:opacity-40 disabled:cursor-not-allowed transition flex items-center gap-1 cursor-pointer"
+                >
+                  <ChevronLeft size={14} />
+                  <span>Précédent</span>
+                </button>
+
+                <div className="flex items-center gap-1 px-1">
+                  {Array.from({ length: totalPages }, (_, i) => i + 1).map((pageNum) => (
+                    <button
+                      key={pageNum}
+                      type="button"
+                      onClick={() => setCurrentPage(pageNum)}
+                      className={`w-7 h-7 rounded-xl text-xs font-bold transition cursor-pointer flex items-center justify-center ${
+                        currentPage === pageNum
+                          ? 'bg-[#FF8A00] text-white shadow-xs'
+                          : 'bg-gray-100 dark:bg-gray-800 text-gray-600 dark:text-gray-300 hover:bg-gray-200 dark:hover:bg-gray-700'
+                      }`}
+                    >
+                      {pageNum}
+                    </button>
+                  ))}
+                </div>
+
+                <button
+                  type="button"
+                  onClick={() => setCurrentPage((p) => Math.min(totalPages, p + 1))}
+                  disabled={currentPage === totalPages}
+                  className="px-3 py-1.5 rounded-xl border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800 text-xs font-semibold text-gray-700 dark:text-gray-200 hover:bg-gray-50 dark:hover:bg-gray-700 disabled:opacity-40 disabled:cursor-not-allowed transition flex items-center gap-1 cursor-pointer"
+                >
+                  <span>Suivant</span>
+                  <ChevronRight size={14} />
+                </button>
+              </div>
+            </div>
+          )}
+        </div>
+      ) : (
+        /* ======================================================== */
+        /* VUE LISTE ALTERNATIVE AVEC PAGINATION                    */
+        /* ======================================================== */
+        <div className="space-y-2">
+          {paginatedSongs.map((song) => {
+            const currentPlays =
+              songPlaysMap[song.trackingIdSong] !== undefined
+                ? songPlaysMap[song.trackingIdSong]
+                : song.plays || 0;
 
             return (
               <div
                 key={song.trackingIdSong}
-                className="p-3 bg-white rounded-xl border border-gray-100 shadow-xs hover:border-orange-200 transition flex items-center gap-3 group flex-wrap sm:flex-nowrap"
+                className="p-3 bg-white dark:bg-[#111827] rounded-xl border border-gray-150 dark:border-gray-800 shadow-xs hover:border-orange-200 dark:hover:border-orange-500/40 transition flex items-center gap-3 group flex-wrap sm:flex-nowrap"
               >
                 {/* Play / Artwork */}
                 <div className="relative shrink-0 w-12 h-12 rounded-lg overflow-hidden group/img">
@@ -372,11 +630,11 @@ export const SongsManagerPage: React.FC<SongsManagerPageProps> = ({
                 {/* Title & Metadata */}
                 <div className="flex-1 min-w-0">
                   <div className="flex items-center gap-2 flex-wrap">
-                    <h4 className="text-xs font-bold text-gray-900 truncate">{song.titre}</h4>
+                    <h4 className="text-xs font-bold text-gray-900 dark:text-white truncate">{song.titre}</h4>
                     {showEndpoints ? (
                       <button
                         onClick={() => handleCopy(song.trackingIdSong, song.trackingIdSong)}
-                        className="text-[10px] text-gray-500 hover:text-orange-600 font-mono bg-gray-50 hover:bg-orange-50 px-1.5 py-0.5 rounded border border-gray-200 shrink-0 flex items-center gap-1 transition cursor-pointer"
+                        className="text-[10px] text-gray-500 hover:text-orange-600 font-mono bg-gray-50 dark:bg-gray-800 hover:bg-orange-50 px-1.5 py-0.5 rounded border border-gray-200 dark:border-gray-700 shrink-0 flex items-center gap-1 transition cursor-pointer"
                         title="Copier le trackingIdSong"
                       >
                         <span>{song.trackingIdSong}</span>
@@ -388,30 +646,21 @@ export const SongsManagerPage: React.FC<SongsManagerPageProps> = ({
                       </button>
                     ) : null}
                     {song.nomCategorie && (
-                      <span className="text-[10px] font-medium bg-amber-50 text-amber-800 px-1.5 py-0.5 rounded border border-amber-200 flex items-center gap-0.5">
+                      <span className="text-[10px] font-medium bg-amber-50 dark:bg-amber-950/40 text-amber-800 dark:text-amber-300 px-1.5 py-0.5 rounded border border-amber-200 dark:border-amber-800 flex items-center gap-0.5">
                         <Tag size={9} />
                         {song.nomCategorie}
                       </span>
                     )}
                   </div>
-                  <p className="text-[11px] text-gray-500 truncate mt-0.5">{song.artiste}</p>
+                  <p className="text-[11px] text-gray-500 dark:text-gray-400 truncate mt-0.5">{song.artiste}</p>
                   <div className="flex items-center gap-2 mt-1 text-[10px] text-gray-400 flex-wrap">
                     <span className="text-[#FF8A00] font-medium">{song.genre || song.nomCategorie || 'Musique'}</span>
                     <span>•</span>
                     <span>{song.duree || '3:20'}</span>
-                    {showEndpoints && song.albumTrackingId && (
-                      <>
-                        <span>•</span>
-                        <span className="font-mono text-teal-600 truncate max-w-[130px]" title={`albumTrackingId: ${song.albumTrackingId}`}>
-                          Alb: {song.albumTrackingId}
-                        </span>
-                      </>
-                    )}
                     <span>•</span>
                     <button
                       onClick={() => handleRefreshPlays(song.trackingIdSong)}
-                      className="flex items-center gap-1 text-purple-600 hover:text-purple-800 font-medium bg-purple-50 px-1.5 py-0.5 rounded border border-purple-100 transition cursor-pointer"
-                      title={showEndpoints ? `Actualiser /stats/nbrTotalEcoute/${song.trackingIdSong}` : "Nombre d'écoutes"}
+                      className="flex items-center gap-1 text-purple-600 dark:text-purple-400 font-medium bg-purple-50 dark:bg-purple-950/40 px-1.5 py-0.5 rounded border border-purple-100 dark:border-purple-800 transition cursor-pointer"
                     >
                       <Headphones size={9} />
                       <span>{currentPlays} écoutes</span>
@@ -422,47 +671,65 @@ export const SongsManagerPage: React.FC<SongsManagerPageProps> = ({
 
                 {/* Action Buttons */}
                 <div className="flex items-center gap-1 shrink-0 ml-auto sm:ml-0">
-                  {/* Find containing playlists */}
                   <button
                     onClick={() => handleInspectPlaylists(song)}
-                    className="p-2 text-gray-400 hover:text-purple-600 hover:bg-purple-50 rounded-lg transition cursor-pointer"
-                    title={showEndpoints ? "Playlists contenant ce titre (/playlist/getAllSongForPlaylist)" : "Playlists associées"}
+                    className="p-2 text-gray-400 hover:text-purple-600 hover:bg-purple-50 dark:hover:bg-purple-950/40 rounded-lg transition cursor-pointer"
+                    title="Playlists associées"
                   >
                     <ListMusic size={16} />
                   </button>
-
-                  {/* Update audio file / URL */}
                   <button
                     onClick={() => handleOpenUpdateAudio(song)}
-                    className="p-2 text-gray-400 hover:text-blue-600 hover:bg-blue-50 rounded-lg transition cursor-pointer"
-                    title={showEndpoints ? "Remplacer l'audio (PUT /song/updateAudio/{trackingIdSong})" : "Remplacer le fichier audio"}
+                    className="p-2 text-gray-400 hover:text-blue-600 hover:bg-blue-50 dark:hover:bg-blue-950/40 rounded-lg transition cursor-pointer"
+                    title="Remplacer le fichier audio"
                   >
                     <FileAudio size={16} />
                   </button>
-
-                  {/* Edit metadata */}
                   <button
                     onClick={() => handleOpenEdit(song)}
-                    className="p-2 text-gray-400 hover:text-emerald-600 hover:bg-emerald-50 rounded-lg transition cursor-pointer"
-                    title={showEndpoints ? "Modifier (PUT /song/update/{trackingIdSong})" : "Modifier les détails du morceau"}
+                    className="p-2 text-gray-400 hover:text-emerald-600 hover:bg-emerald-50 dark:hover:bg-emerald-950/40 rounded-lg transition cursor-pointer"
+                    title="Modifier les détails du morceau"
                   >
                     <Edit2 size={16} />
                   </button>
-
-                  {/* Delete song */}
                   <button
                     onClick={() => setDeleteTarget(song)}
-                    className="p-2 text-gray-400 hover:text-red-600 hover:bg-red-50 rounded-lg transition cursor-pointer"
-                    title={showEndpoints ? "Supprimer (DELETE /song/delete/{trackingIdSong})" : "Supprimer le morceau"}
+                    className="p-2 text-gray-400 hover:text-red-600 hover:bg-red-50 dark:hover:bg-red-950/40 rounded-lg transition cursor-pointer"
+                    title="Supprimer le morceau"
                   >
                     <Trash2 size={16} />
                   </button>
                 </div>
               </div>
             );
-          })
-        )}
-      </div>
+          })}
+
+          {/* Pagination for list view */}
+          {totalPages > 1 && (
+            <div className="flex items-center justify-between p-3 bg-white dark:bg-[#111827] rounded-xl border border-gray-150 dark:border-gray-800 text-xs">
+              <span className="text-gray-500">
+                Page {currentPage} sur {totalPages} ({filteredSongs.length} morceaux)
+              </span>
+              <div className="flex items-center gap-2">
+                <button
+                  onClick={() => setCurrentPage((p) => Math.max(1, p - 1))}
+                  disabled={currentPage === 1}
+                  className="px-2.5 py-1 rounded-lg border border-gray-200 dark:border-gray-700 disabled:opacity-40"
+                >
+                  Précédent
+                </button>
+                <button
+                  onClick={() => setCurrentPage((p) => Math.min(totalPages, p + 1))}
+                  disabled={currentPage === totalPages}
+                  className="px-2.5 py-1 rounded-lg border border-gray-200 dark:border-gray-700 disabled:opacity-40"
+                >
+                  Suivant
+                </button>
+              </div>
+            </div>
+          )}
+        </div>
+      )}
 
       {/* Edit Metadata Modal */}
       {editingSong && (
