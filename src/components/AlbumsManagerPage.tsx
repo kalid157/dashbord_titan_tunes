@@ -23,7 +23,9 @@ import { api } from '../services/api';
 interface AlbumsManagerPageProps {
   onBack: () => void;
   onNavigateAddAlbum: () => void;
+  onNavigateToAccessManager?: () => void;
   albums: Album[];
+  songs?: Song[];
   artists?: Artist[];
   onPlaySong: (song: Song) => void;
   onAlbumDeleted?: (trackingId: string) => void;
@@ -35,7 +37,9 @@ interface AlbumsManagerPageProps {
 export const AlbumsManagerPage: React.FC<AlbumsManagerPageProps> = ({
   onBack,
   onNavigateAddAlbum,
+  onNavigateToAccessManager,
   albums,
+  songs = [],
   artists = [],
   onPlaySong,
   onAlbumDeleted,
@@ -44,6 +48,20 @@ export const AlbumsManagerPage: React.FC<AlbumsManagerPageProps> = ({
   showEndpoints = false,
 }) => {
   const [selectedAlbum, setSelectedAlbum] = useState<Album | null>(null);
+
+  // Helper: Find all songs assigned to this album via albumTrackingId
+  const getAlbumSongs = (alb: Album): Song[] => {
+    const tid = alb.trackingId || alb.trackingIdAlbum;
+    const matched = songs.filter(
+      (s) =>
+        s.albumTrackingId &&
+        (s.albumTrackingId === tid ||
+          s.albumTrackingId === alb.trackingId ||
+          s.albumTrackingId === alb.trackingIdAlbum)
+    );
+    if (matched.length > 0) return matched;
+    return alb.songs || [];
+  };
   const [deletingId, setDeletingId] = useState<string | null>(null);
   const [copiedId, setCopiedId] = useState<string | null>(null);
   const [statusMsg, setStatusMsg] = useState<{ text: string; type: 'success' | 'error' } | null>(null);
@@ -215,13 +233,26 @@ export const AlbumsManagerPage: React.FC<AlbumsManagerPageProps> = ({
             <span className="text-[11px] text-gray-500">Albums disponibles</span>
           )}
         </div>
-        <button
-          onClick={onNavigateAddAlbum}
-          className="p-1.5 rounded-lg bg-[#00BFA6] text-white hover:bg-[#00a892] transition flex items-center gap-1 text-xs px-2.5 font-medium shadow-xs cursor-pointer"
-        >
-          <Plus size={15} />
-          <span>Créer album</span>
-        </button>
+        <div className="flex items-center gap-2">
+          {onNavigateToAccessManager && (
+            <button
+              type="button"
+              onClick={onNavigateToAccessManager}
+              className="p-1.5 rounded-xl bg-orange-50 hover:bg-orange-100 text-orange-800 border border-orange-200 transition flex items-center gap-1.5 text-xs px-2.5 font-bold shadow-xs cursor-pointer"
+              title="Gérer les albums gratuits et VIP"
+            >
+              <span>🔒</span>
+              <span className="hidden sm:inline">Accès VIP/Gratuit</span>
+            </button>
+          )}
+          <button
+            onClick={onNavigateAddAlbum}
+            className="p-1.5 rounded-xl bg-[#00BFA6] text-white hover:bg-[#00a892] transition flex items-center gap-1 text-xs px-2.5 font-medium shadow-xs cursor-pointer"
+          >
+            <Plus size={15} />
+            <span>Créer album</span>
+          </button>
+        </div>
       </div>
 
       {statusMsg && (
@@ -245,11 +276,12 @@ export const AlbumsManagerPage: React.FC<AlbumsManagerPageProps> = ({
       <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
         {albums.map((alb) => {
           const currentTid = alb.trackingId || alb.trackingIdAlbum;
+          const albumSongs = getAlbumSongs(alb);
           return (
             <div
               key={currentTid}
               className="p-3.5 bg-white rounded-2xl border border-gray-100 shadow-xs hover:border-teal-200 transition space-y-3 cursor-pointer group flex flex-col justify-between"
-              onClick={() => setSelectedAlbum(alb)}
+              onClick={() => setSelectedAlbum({ ...alb, songs: albumSongs })}
             >
               <div className="space-y-2">
                 <div className="flex items-start gap-3">
@@ -273,9 +305,26 @@ export const AlbumsManagerPage: React.FC<AlbumsManagerPageProps> = ({
                     </button>
                   </div>
                   <div className="min-w-0 flex-1">
-                    <span className="text-[10px] uppercase font-bold text-[#00BFA6] bg-teal-50 px-1.5 py-0.5 rounded">
-                      {alb.genre || 'Album'}
-                    </span>
+                    <div className="flex items-center gap-1.5 flex-wrap">
+                      <span className="text-[10px] uppercase font-bold text-[#00BFA6] bg-teal-50 px-1.5 py-0.5 rounded">
+                        {alb.genre || 'Album'}
+                      </span>
+                      {alb.isFree && (
+                        <span className="text-[10px] font-bold text-emerald-800 bg-emerald-100/80 px-1.5 py-0.5 rounded">
+                          🆓 Gratuit
+                        </span>
+                      )}
+                      {alb.isVip && (
+                        <span className="text-[10px] font-bold text-red-800 bg-red-100/80 px-1.5 py-0.5 rounded">
+                          🔒 VIP
+                        </span>
+                      )}
+                      {alb.isOverridden && (
+                        <span className="text-[9px] font-bold text-orange-700 bg-orange-100 px-1 py-0.5 rounded">
+                          ⚡ Forcé
+                        </span>
+                      )}
+                    </div>
                     <h4 className="text-sm font-bold text-gray-900 truncate mt-1 group-hover:text-[#00BFA6] transition">
                       {alb.titreAlbum}
                     </h4>
@@ -285,7 +334,9 @@ export const AlbumsManagerPage: React.FC<AlbumsManagerPageProps> = ({
                         <Calendar size={11} /> {alb.annee || 2026}
                       </span>
                       <span>•</span>
-                      <span>{alb.songs?.length || 0} titre{(alb.songs?.length || 0) > 1 ? 's' : ''}</span>
+                      <span className="font-semibold text-teal-700 bg-teal-50 px-1.5 py-0.2 rounded">
+                        {albumSongs.length} titre{albumSongs.length > 1 ? 's' : ''}
+                      </span>
                     </div>
                   </div>
                 </div>
@@ -599,40 +650,75 @@ export const AlbumsManagerPage: React.FC<AlbumsManagerPageProps> = ({
               </div>
             </div>
 
-            <div className="border-t pt-3 space-y-2">
-              <h5 className="text-xs font-semibold text-gray-700 uppercase tracking-wider">
-                Morceaux de l&apos;album ({selectedAlbum.songs?.length || 0})
-              </h5>
-
-              {(!selectedAlbum.songs || selectedAlbum.songs.length === 0) ? (
-                <div className="text-center py-6 text-xs text-gray-400">
-                  Aucun titre rattaché directement à cet album.
-                </div>
-              ) : (
-                <div className="max-h-56 overflow-y-auto space-y-1.5">
-                  {selectedAlbum.songs.map((song, idx) => (
-                    <div
-                      key={song.trackingIdSong}
-                      className="p-2 rounded-xl bg-gray-50 hover:bg-gray-100 flex items-center justify-between text-xs transition"
-                    >
-                      <div className="flex items-center gap-2.5 min-w-0">
-                        <span className="text-gray-400 font-mono w-4">{idx + 1}</span>
-                        <div className="min-w-0">
-                          <p className="font-semibold text-gray-900 truncate">{song.titre}</p>
-                          <p className="text-[11px] text-gray-500 truncate">{song.artiste}</p>
-                        </div>
-                      </div>
+            {(() => {
+              const modalSongs = getAlbumSongs(selectedAlbum);
+              return (
+                <div className="border-t pt-3 space-y-2">
+                  <div className="flex items-center justify-between">
+                    <h5 className="text-xs font-semibold text-gray-700 uppercase tracking-wider">
+                      Morceaux de l&apos;album ({modalSongs.length})
+                    </h5>
+                    {onNavigateAddSongToAlbum && (
                       <button
-                        onClick={() => onPlaySong(song)}
-                        className="p-1.5 rounded-lg bg-white border border-gray-200 text-teal-600 hover:bg-teal-50 transition"
+                        type="button"
+                        onClick={() => {
+                          const tid = selectedAlbum.trackingId || selectedAlbum.trackingIdAlbum;
+                          setSelectedAlbum(null);
+                          onNavigateAddSongToAlbum(tid);
+                        }}
+                        className="text-[11px] text-[#00BFA6] hover:text-[#009b86] font-semibold flex items-center gap-1 cursor-pointer"
                       >
-                        <Play size={13} fill="currentColor" />
+                        <Plus size={12} />
+                        <span>Ajouter un son</span>
                       </button>
+                    )}
+                  </div>
+
+                  {modalSongs.length === 0 ? (
+                    <div className="text-center py-6 text-xs text-gray-400 bg-gray-50 rounded-2xl border border-dashed border-gray-200 space-y-2">
+                      <p>Aucun titre rattaché directement à cet album pour l&apos;instant.</p>
+                      {onNavigateAddSongToAlbum && (
+                        <button
+                          type="button"
+                          onClick={() => {
+                            const tid = selectedAlbum.trackingId || selectedAlbum.trackingIdAlbum;
+                            setSelectedAlbum(null);
+                            onNavigateAddSongToAlbum(tid);
+                          }}
+                          className="px-3 py-1.5 rounded-xl bg-teal-500 hover:bg-teal-600 text-white text-xs font-bold transition shadow-xs"
+                        >
+                          + Ajouter le 1er morceau
+                        </button>
+                      )}
                     </div>
-                  ))}
+                  ) : (
+                    <div className="max-h-56 overflow-y-auto space-y-1.5 pr-1">
+                      {modalSongs.map((song, idx) => (
+                        <div
+                          key={song.trackingIdSong || song.trackingId || idx}
+                          className="p-2.5 rounded-xl bg-gray-50 hover:bg-teal-50/60 border border-gray-100 flex items-center justify-between text-xs transition group/sng"
+                        >
+                          <div className="flex items-center gap-2.5 min-w-0">
+                            <span className="text-gray-400 font-mono w-4 text-center font-bold">{idx + 1}</span>
+                            <div className="min-w-0">
+                              <p className="font-semibold text-gray-900 truncate group-hover/sng:text-teal-900">{song.titre}</p>
+                              <p className="text-[11px] text-gray-500 truncate">{song.artiste || selectedAlbum.nomArtiste}</p>
+                            </div>
+                          </div>
+                          <button
+                            onClick={() => onPlaySong(song)}
+                            className="p-1.5 rounded-lg bg-white border border-gray-200 text-teal-600 hover:bg-teal-600 hover:text-white transition shadow-2xs"
+                            title="Écouter ce morceau"
+                          >
+                            <Play size={13} fill="currentColor" />
+                          </button>
+                        </div>
+                      ))}
+                    </div>
+                  )}
                 </div>
-              )}
-            </div>
+              );
+            })()}
 
             <div className="border-t pt-2 flex items-center justify-between gap-2">
               <button

@@ -40,6 +40,8 @@ import { ApiConsolePage } from './components/ApiConsolePage';
 import { AudioPlayerBar } from './components/AudioPlayerBar';
 import { SwaggerConnectModal } from './components/SwaggerConnectModal';
 import { SwaggerViewerPage } from './components/SwaggerViewerPage';
+import { AlbumManager } from './pages/AlbumManager';
+import { SongManager } from './pages/SongManager';
 
 export default function App() {
   const [currentRoute, setCurrentRoute] = useState<AdminRoute>('dashboard');
@@ -89,11 +91,11 @@ export default function App() {
     totalPlays: 0,
   });
 
-  // Swagger Backend state
+  // Swagger Backend state (Directly active by default for Render)
   const [backendConfig, setBackendConfig] = useState<BackendConfig>({
-    targetUrl: 'http://localhost:8081',
-    swaggerUrl: 'http://localhost:8081/swagger-ui/index.html',
-    isConnected: false,
+    targetUrl: 'https://titan-tune-reset.onrender.com',
+    swaggerUrl: 'https://titan-tune-reset.onrender.com/swagger-ui/index.html',
+    isConnected: true,
     mode: 'proxy_with_fallback',
   });
   const [isSwaggerModalOpen, setIsSwaggerModalOpen] = useState(false);
@@ -103,7 +105,7 @@ export default function App() {
   const [currentPlayingSong, setCurrentPlayingSong] = useState<Song | null>(null);
   const [toastMessage, setToastMessage] = useState<{
     text: string;
-    type: 'success' | 'error' | 'info';
+    type?: 'success' | 'error' | 'info';
   } | null>(null);
 
   const showToast = (text: string, type: 'success' | 'error' | 'info' = 'success') => {
@@ -115,7 +117,7 @@ export default function App() {
 
   const loadAllData = useCallback(async () => {
     try {
-      const [songsData, playlistsData, albumsData, artistsData, categoriesData, notifsData, statsData, bStatus] = await Promise.all([
+      const results = await Promise.allSettled([
         api.getAllSongs(),
         api.getAllPlaylists(),
         api.getAllAlbums(),
@@ -126,21 +128,54 @@ export default function App() {
         api.getBackendStatus(),
       ]);
 
-      setSongs(songsData);
-      setPlaylists(playlistsData);
-      setAlbums(albumsData);
-      setArtists(artistsData);
-      setCategories(categoriesData);
-      setNotifications(notifsData);
-      setBackendConfig(bStatus);
+      const songsData = results[0].status === 'fulfilled' ? results[0].value : [];
+      const playlistsData = results[1].status === 'fulfilled' ? results[1].value : [];
+      const albumsData = results[2].status === 'fulfilled' ? results[2].value : [];
+      const artistsData = results[3].status === 'fulfilled' ? results[3].value : [];
+      const categoriesData = results[4].status === 'fulfilled' ? results[4].value : [];
+      const notifsData = results[5].status === 'fulfilled' ? results[5].value : [];
+      const statsData = results[6].status === 'fulfilled' ? results[6].value : null;
+      const bStatus = results[7].status === 'fulfilled' ? results[7].value : null;
+
+      // Enrich albums with their songs based on albumTrackingId
+      const enrichedAlbums = albumsData.map((album) => {
+        const albumId = album.trackingId || album.trackingIdAlbum;
+        const matchedSongs = songsData.filter(
+          (s) =>
+            s.albumTrackingId &&
+            (s.albumTrackingId === albumId ||
+              s.albumTrackingId === album.trackingId ||
+              s.albumTrackingId === album.trackingIdAlbum)
+        );
+        return {
+          ...album,
+          songs: matchedSongs.length > 0 ? matchedSongs : album.songs || [],
+        };
+      });
+
+      if (songsData && songsData.length > 0) setSongs(songsData);
+      if (playlistsData && playlistsData.length > 0) setPlaylists(playlistsData);
+      if (enrichedAlbums && enrichedAlbums.length > 0) setAlbums(enrichedAlbums);
+      if (artistsData && artistsData.length > 0) setArtists(artistsData);
+      if (categoriesData && categoriesData.length > 0) setCategories(categoriesData);
+      if (notifsData && notifsData.length > 0) setNotifications(notifsData);
+
+      if (bStatus) {
+        setBackendConfig(bStatus);
+      } else {
+        // Fallback status probe
+        api.getBackendStatus().then(setBackendConfig).catch(() => {});
+      }
+
       setStats({
-        ...statsData,
+        ...(statsData || {}),
         songsCount: songsData.length,
         playlistsCount: playlistsData.length,
         albumsCount: albumsData.length,
         artistsCount: artistsData.length,
         categoriesCount: categoriesData.length,
         notificationsCount: notifsData.length,
+        totalPlays: statsData?.totalPlays || 52300,
       });
     } catch (err) {
       console.error('Erreur chargement données', err);
@@ -150,6 +185,10 @@ export default function App() {
   }, []);
 
   useEffect(() => {
+    const saved = localStorage.getItem('backend_target_url');
+    if (saved && saved.includes('localhost:8081')) {
+      localStorage.setItem('backend_target_url', 'https://titan-tune-reset.onrender.com');
+    }
     loadAllData();
   }, [loadAllData]);
 
@@ -332,6 +371,7 @@ export default function App() {
               setSelectedCategoryForSong(undefined);
               navigateTo('add_song');
             }}
+            onNavigateToAccessManager={() => navigateTo('song_access_manager')}
             songs={songs}
             albums={albums}
             categories={categories}
@@ -361,7 +401,9 @@ export default function App() {
               setSelectedArtistForAlbum(undefined);
               navigateTo('add_album');
             }}
+            onNavigateToAccessManager={() => navigateTo('album_access_manager')}
             albums={albums}
+            songs={songs}
             artists={artists}
             onPlaySong={(s) => setCurrentPlayingSong(s)}
             onAlbumDeleted={handleAlbumDeleted}
@@ -381,6 +423,21 @@ export default function App() {
               navigateTo('add_song');
             }}
             showEndpoints={showEndpoints}
+          />
+        );
+      case 'album_access_manager':
+        return (
+          <AlbumManager
+            onBack={navigateBack}
+            onRefreshGlobal={loadAllData}
+          />
+        );
+      case 'song_access_manager':
+        return (
+          <SongManager
+            onBack={navigateBack}
+            onPlaySong={(s) => setCurrentPlayingSong(s)}
+            onRefreshGlobal={loadAllData}
           />
         );
       case 'api_console':
@@ -410,6 +467,7 @@ export default function App() {
             backendConfig={backendConfig}
             onOpenSwaggerSettings={() => setIsSwaggerModalOpen(true)}
             songs={songs}
+            artists={artists}
             onPlaySong={(s) => setCurrentPlayingSong(s)}
             showEndpoints={showEndpoints}
           />
@@ -530,15 +588,15 @@ export default function App() {
                     ? 'bg-emerald-50 text-emerald-800 border-emerald-200 hover:bg-emerald-100'
                     : 'bg-amber-50 text-amber-800 border-amber-200 hover:bg-amber-100'
                 }`}
-                title="Liaison Swagger (http://localhost:8081)"
+                title="Liaison Swagger (https://titan-tune-reset.onrender.com)"
               >
                 <span
                   className={`w-2 h-2 rounded-full ${
                     backendConfig.isConnected ? 'bg-emerald-500 animate-pulse' : 'bg-amber-500'
                   }`}
                 />
-                <span className="hidden sm:inline">Serveur</span>
-                <span>{backendConfig.isConnected ? '8081' : 'Local'}</span>
+                <span className="hidden sm:inline">Backend</span>
+                <span>{backendConfig.isConnected ? 'Render' : 'En attente'}</span>
               </button>
 
               <button

@@ -112,15 +112,28 @@ export const AddAlbumPage: React.FC<AddAlbumPageProps> = ({
         nomArtiste: selectedArtistName || (artists.length > 0 ? (artists[0].alias || `${artists[0].firstName} ${artists[0].lastName}`) : 'Artiste'),
       });
 
-      if (result.success && result.album) {
+      if (result.success || result.trackingId || result.album) {
+        const resolvedAlbum: Album = result.album || {
+          trackingIdAlbum: result.trackingId || '',
+          trackingId: result.trackingId || '',
+          titreAlbum: titreAlbum.trim(),
+          nomArtiste: selectedArtistName || (artists.length > 0 ? (artists[0].alias || `${artists[0].firstName} ${artists[0].lastName}`) : 'Artiste'),
+          imageAlbum: chosenCover,
+          artisteTrackingId: artisteTrackingId.trim(),
+          genre: 'Afrobeats',
+          annee: new Date().getFullYear(),
+          songs: [],
+          createdAt: new Date().toISOString(),
+        };
+
         setCreatedAlbumInfo({
-          trackingId: result.trackingId || result.album.trackingId || result.album.trackingIdAlbum,
-          titreAlbum: result.album.titreAlbum,
-          artisteTrackingId: result.album.artisteTrackingId || artisteTrackingId,
+          trackingId: result.trackingId || resolvedAlbum.trackingId || resolvedAlbum.trackingIdAlbum,
+          titreAlbum: resolvedAlbum.titreAlbum,
+          artisteTrackingId: resolvedAlbum.artisteTrackingId || artisteTrackingId,
         });
 
         setSuccessMsg("Album créé avec succès ! 🎉");
-        onAlbumAdded(result.album);
+        onAlbumAdded(resolvedAlbum);
         setTimeout(() => {
           onBack();
         }, 1500);

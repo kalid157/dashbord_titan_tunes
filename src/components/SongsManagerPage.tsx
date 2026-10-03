@@ -33,6 +33,7 @@ import { Song, Playlist, Album, Category } from '../types';
 interface SongsManagerPageProps {
   onBack: () => void;
   onNavigateAddSong: () => void;
+  onNavigateToAccessManager?: () => void;
   songs: Song[];
   albums?: Album[];
   categories?: Category[];
@@ -45,6 +46,7 @@ interface SongsManagerPageProps {
 export const SongsManagerPage: React.FC<SongsManagerPageProps> = ({
   onBack,
   onNavigateAddSong,
+  onNavigateToAccessManager,
   songs,
   albums = [],
   categories = [],
@@ -255,13 +257,26 @@ export const SongsManagerPage: React.FC<SongsManagerPageProps> = ({
             <span className="text-[11px] text-gray-500">Titres synchronisés</span>
           )}
         </div>
-        <button
-          onClick={onNavigateAddSong}
-          className="p-1.5 rounded-lg bg-[#FF8A00] text-white hover:bg-[#e07b00] transition flex items-center gap-1 text-xs px-2.5 font-medium shadow-xs cursor-pointer"
-        >
-          <Plus size={15} />
-          <span>Ajouter</span>
-        </button>
+        <div className="flex items-center gap-2">
+          {onNavigateToAccessManager && (
+            <button
+              type="button"
+              onClick={onNavigateToAccessManager}
+              className="p-1.5 rounded-xl bg-orange-50 hover:bg-orange-100 text-orange-800 border border-orange-200 transition flex items-center gap-1.5 text-xs px-2.5 font-bold shadow-xs cursor-pointer"
+              title="Gérer les morceaux gratuits et VIP"
+            >
+              <span>🔒</span>
+              <span className="hidden sm:inline">Accès VIP/Gratuit</span>
+            </button>
+          )}
+          <button
+            onClick={onNavigateAddSong}
+            className="p-1.5 rounded-xl bg-[#FF8A00] text-white hover:bg-[#e07b00] transition flex items-center gap-1 text-xs px-2.5 font-medium shadow-xs cursor-pointer"
+          >
+            <Plus size={15} />
+            <span>Ajouter</span>
+          </button>
+        </div>
       </div>
 
       {statusMsg && (

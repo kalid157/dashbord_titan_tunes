@@ -36,7 +36,7 @@ export const SwaggerViewerPage: React.FC<SwaggerViewerPageProps> = ({
   const [isRefreshing, setIsRefreshing] = useState(false);
   const [expandedSection, setExpandedSection] = useState<string | null>('playlist');
 
-  const swaggerUrl = config.swaggerUrl || 'http://localhost:8081/swagger-ui/index.html';
+  const swaggerUrl = config.swaggerUrl || 'https://titan-tune-reset.onrender.com/swagger-ui/index.html';
 
   const copySwaggerUrl = () => {
     navigator.clipboard.writeText(swaggerUrl);
@@ -89,7 +89,7 @@ export const SwaggerViewerPage: React.FC<SwaggerViewerPageProps> = ({
         <div className="flex items-center gap-2">
           <Globe size={18} className="text-[#FF8A00]" />
           <h2 className="text-base font-semibold text-gray-800">
-            Intégration Swagger OpenAPI (Port 8081)
+            Intégration Swagger OpenAPI (Render)
           </h2>
         </div>
         <button
@@ -111,7 +111,7 @@ export const SwaggerViewerPage: React.FC<SwaggerViewerPageProps> = ({
               <div className="flex items-center gap-2">
                 <h3 className="text-sm font-bold tracking-tight">Swagger UI OpenAPI</h3>
                 <span className="text-[10px] bg-white/10 px-2 py-0.5 rounded-full font-mono">
-                  v3 / 8081
+                  Render / Cloud
                 </span>
               </div>
               <p className="text-xs text-gray-300 font-mono mt-0.5">{swaggerUrl}</p>

@@ -230,6 +230,46 @@ export const Sidebar: React.FC<SidebarProps> = ({
           </div>
         </div>
 
+        {/* Access & Monetization Control */}
+        <div>
+          <div className="px-3 mb-2 text-[10px] font-bold text-gray-400 uppercase tracking-wider flex items-center justify-between">
+            <span>Accès & Monétisation</span>
+            <span className="text-[9px] bg-orange-100 text-[#FF8A00] font-bold px-1.5 py-0.2 rounded-md">
+              1er gratuit
+            </span>
+          </div>
+          <div className="space-y-1">
+            <button
+              onClick={() => handleItemClick('album_access_manager')}
+              className={`w-full text-left px-3 py-2 rounded-xl text-xs font-semibold transition flex items-center justify-between cursor-pointer ${
+                currentRoute === 'album_access_manager'
+                  ? 'bg-teal-50 text-teal-700 font-bold border border-teal-200'
+                  : 'text-gray-700 hover:text-teal-700 hover:bg-teal-50/60'
+              }`}
+            >
+              <div className="flex items-center gap-2 truncate">
+                <span>🎵</span>
+                <span className="truncate">Accès Albums (VIP/Gratuit)</span>
+              </div>
+              <ChevronRight size={13} className="text-gray-300 shrink-0" />
+            </button>
+            <button
+              onClick={() => handleItemClick('song_access_manager')}
+              className={`w-full text-left px-3 py-2 rounded-xl text-xs font-semibold transition flex items-center justify-between cursor-pointer ${
+                currentRoute === 'song_access_manager'
+                  ? 'bg-indigo-50 text-indigo-700 font-bold border border-indigo-200'
+                  : 'text-gray-700 hover:text-indigo-700 hover:bg-indigo-50/60'
+              }`}
+            >
+              <div className="flex items-center gap-2 truncate">
+                <span>🎤</span>
+                <span className="truncate">Accès Songs (VIP/Gratuit)</span>
+              </div>
+              <ChevronRight size={13} className="text-gray-300 shrink-0" />
+            </button>
+          </div>
+        </div>
+
         {/* Ease-of-Use & Developer Settings */}
         <div className="pt-2 border-t border-gray-100">
           <div className="px-3 mb-2 text-[10px] font-bold text-gray-400 uppercase tracking-wider">
@@ -359,7 +399,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
             >
               <div className="flex items-center gap-2">
                 <Radio size={14} className="text-lime-600" />
-                <span>Swagger 8081</span>
+                <span>Swagger Render</span>
               </div>
               <ChevronRight size={12} className="text-gray-400" />
             </button>
@@ -383,10 +423,10 @@ export const Sidebar: React.FC<SidebarProps> = ({
             />
             <div className="min-w-0">
               <div className="font-semibold text-gray-800 text-[11px] truncate">
-                {backendConfig.isConnected ? 'Serveur Swagger connecté' : 'Mode local autonome'}
+                {backendConfig.isConnected ? 'Serveur Render connecté' : 'Mode local autonome'}
               </div>
               <div className="text-[10px] text-gray-400 truncate">
-                {showEndpoints ? (backendConfig.swaggerUrl || 'Port 8081') : 'Prêt à l\'emploi'}
+                {showEndpoints ? (backendConfig.swaggerUrl || 'Render (Cloud)') : 'Prêt à l\'emploi'}
               </div>
             </div>
           </div>

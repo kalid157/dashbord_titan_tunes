@@ -21,6 +21,10 @@ export interface Song {
   plays?: number;
   likes?: number;
   total_liked?: number;
+  order?: number;
+  isFree?: boolean;
+  isVip?: boolean;
+  isOverridden?: boolean;
 }
 
 export interface Playlist {
@@ -44,6 +48,10 @@ export interface Album {
   annee?: number;
   songs?: Song[];
   createdAt?: string;
+  order?: number;
+  isFree?: boolean;
+  isVip?: boolean;
+  isOverridden?: boolean;
 }
 
 export interface Artist {
@@ -58,6 +66,7 @@ export interface Artist {
   connectionCode: string; // Code pour se connecter généré
   token?: string;
   createdAt: string;
+  role?: 'ARTIST' | 'CLIENT';
   rawResponse?: Record<string, unknown>;
 }
 
@@ -114,6 +123,8 @@ export type AdminRoute =
   | 'manage_songs'
   | 'manage_playlists'
   | 'manage_albums'
+  | 'album_access_manager'
+  | 'song_access_manager'
   | 'api_console'
   | 'swagger_view';
 

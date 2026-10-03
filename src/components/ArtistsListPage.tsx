@@ -37,6 +37,7 @@ export const ArtistsListPage: React.FC<ArtistsListPageProps> = ({
   showEndpoints = false,
 }) => {
   const [searchQuery, setSearchQuery] = useState('');
+  const [roleFilter, setRoleFilter] = useState<'ALL' | 'ARTIST' | 'CLIENT'>('ALL');
   const [copiedField, setCopiedField] = useState<string | null>(null);
   const [selectedArtistForRaw, setSelectedArtistForRaw] = useState<Artist | null>(null);
 
@@ -47,6 +48,9 @@ export const ArtistsListPage: React.FC<ArtistsListPageProps> = ({
   };
 
   const filteredArtists = artists.filter((a) => {
+    if (roleFilter === 'ARTIST' && a.role === 'CLIENT') return false;
+    if (roleFilter === 'CLIENT' && a.role !== 'CLIENT') return false;
+
     const q = searchQuery.toLowerCase();
     return (
       a.alias.toLowerCase().includes(q) ||
@@ -122,15 +126,54 @@ export const ArtistsListPage: React.FC<ArtistsListPageProps> = ({
         </button>
       </div>
 
+      {/* Role Filters Tabs */}
+      <div className="flex items-center gap-2 overflow-x-auto pb-1">
+        <button
+          type="button"
+          onClick={() => setRoleFilter('ALL')}
+          className={`px-3 py-1.5 rounded-xl text-xs font-semibold transition ${
+            roleFilter === 'ALL'
+              ? 'bg-gray-900 text-white shadow-xs'
+              : 'bg-gray-100 text-gray-600 hover:bg-gray-200'
+          }`}
+        >
+          Tous ({artists.length})
+        </button>
+        <button
+          type="button"
+          onClick={() => setRoleFilter('ARTIST')}
+          className={`px-3 py-1.5 rounded-xl text-xs font-semibold transition ${
+            roleFilter === 'ARTIST'
+              ? 'bg-[#FF8A00] text-white shadow-xs'
+              : 'bg-orange-50 text-orange-800 hover:bg-orange-100'
+          }`}
+        >
+          Artistes ({artists.filter((a) => a.role !== 'CLIENT').length})
+        </button>
+        <button
+          type="button"
+          onClick={() => setRoleFilter('CLIENT')}
+          className={`px-3 py-1.5 rounded-xl text-xs font-semibold transition ${
+            roleFilter === 'CLIENT'
+              ? 'bg-blue-600 text-white shadow-xs'
+              : 'bg-blue-50 text-blue-800 hover:bg-blue-100'
+          }`}
+        >
+          Clients / Utilisateurs ({artists.filter((a) => a.role === 'CLIENT').length})
+        </button>
+      </div>
+
       {/* Artists Cards Grid */}
       {filteredArtists.length === 0 ? (
         <div className="p-10 text-center bg-white rounded-3xl border border-dashed border-gray-200 space-y-3">
           <div className="w-12 h-12 rounded-full bg-orange-100 text-[#FF8A00] flex items-center justify-center mx-auto">
             <UserCheck size={24} />
           </div>
-          <p className="text-sm font-semibold text-gray-700">Aucun artiste trouvé</p>
+          <p className="text-sm font-semibold text-gray-700">Aucun profil trouvé</p>
           <p className="text-xs text-gray-400">
-            Enregistrez votre premier artiste via le formulaire pour obtenir son trackingId et son code de connexion.
+            {roleFilter === 'CLIENT'
+              ? 'Aucun client trouvé dans Swagger /user/allClient.'
+              : 'Enregistrez votre premier artiste via le formulaire ou rechargez les données depuis Swagger.'}
           </p>
           <button
             type="button"
@@ -151,11 +194,28 @@ export const ArtistsListPage: React.FC<ArtistsListPageProps> = ({
                 {/* Header with Avatar & Alias */}
                 <div className="flex items-start justify-between">
                   <div className="flex items-center gap-3">
-                    <div className="w-12 h-12 rounded-2xl bg-gradient-to-tr from-[#FF8A00] to-[#E8A23F] text-white flex items-center justify-center font-bold text-lg shadow-sm">
+                    <div
+                      className={`w-12 h-12 rounded-2xl text-white flex items-center justify-center font-bold text-lg shadow-sm ${
+                        artist.role === 'CLIENT'
+                          ? 'bg-gradient-to-tr from-blue-500 to-indigo-600'
+                          : 'bg-gradient-to-tr from-[#FF8A00] to-[#E8A23F]'
+                      }`}
+                    >
                       {artist.alias.slice(0, 2).toUpperCase()}
                     </div>
                     <div>
-                      <h3 className="font-bold text-gray-900 text-sm">{artist.alias}</h3>
+                      <div className="flex items-center gap-2">
+                        <h3 className="font-bold text-gray-900 text-sm">{artist.alias}</h3>
+                        <span
+                          className={`text-[9px] font-bold px-1.5 py-0.5 rounded-md ${
+                            artist.role === 'CLIENT'
+                              ? 'bg-blue-100 text-blue-700'
+                              : 'bg-orange-100 text-orange-800'
+                          }`}
+                        >
+                          {artist.role === 'CLIENT' ? 'CLIENT' : 'ARTISTE'}
+                        </span>
+                      </div>
                       <p className="text-xs text-gray-500">
                         {artist.firstName} {artist.lastName}
                       </p>

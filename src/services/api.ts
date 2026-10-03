@@ -87,7 +87,7 @@ export const api = {
     };
 
     const clientMode = localStorage.getItem('backend_client_mode') || 'proxy';
-    const clientTarget = (localStorage.getItem('backend_target_url') || 'http://localhost:8081').replace(/\/$/, '');
+    const clientTarget = (localStorage.getItem('backend_target_url') || 'https://titan-tune-reset.onrender.com').replace(/\/$/, '');
 
     // Browser direct call if configured
     if (clientMode === 'browser_direct') {
@@ -408,7 +408,42 @@ export const api = {
     };
 
     const clientMode = localStorage.getItem('backend_client_mode') || 'proxy';
-    const clientTarget = (localStorage.getItem('backend_target_url') || 'http://localhost:8081').replace(/\/$/, '');
+    const clientTarget = (localStorage.getItem('backend_target_url') || 'https://titan-tune-reset.onrender.com').replace(/\/$/, '');
+
+    const normalizeAlbumResponse = (data: any, isFallback: boolean): {
+      success: boolean;
+      message: string;
+      trackingId: string;
+      album: Album;
+      origin: 'swagger_real' | 'local_fallback';
+    } => {
+      const albumTrackingId =
+        data.trackingId ||
+        data.trackingIdAlbum ||
+        (data.album && (data.album.trackingId || data.album.trackingIdAlbum)) ||
+        '';
+
+      const resolvedAlbum: Album = {
+        trackingIdAlbum: albumTrackingId,
+        trackingId: albumTrackingId,
+        titreAlbum: data.titreAlbum || (data.album && data.album.titreAlbum) || payload.titreAlbum,
+        nomArtiste: data.nomArtiste || (data.album && data.album.nomArtiste) || payload.nomArtiste || 'Artiste',
+        imageAlbum: data.imageAlbum || (data.album && data.album.imageAlbum) || payload.imageAlbum,
+        artisteTrackingId: data.artisteTrackingId || (data.album && data.album.artisteTrackingId) || payload.artisteTrackingId,
+        genre: data.genre || (data.album && data.album.genre) || payload.genre || 'Afrobeats',
+        annee: data.annee || (data.album && data.album.annee) || payload.annee || new Date().getFullYear(),
+        songs: data.songs || (data.album && data.album.songs) || [],
+        createdAt: data.createdAt || (data.album && data.album.createdAt) || new Date().toISOString(),
+      };
+
+      return {
+        success: true,
+        message: data.message || 'Album créé avec succès sur le backend Swagger ✅',
+        trackingId: albumTrackingId,
+        album: resolvedAlbum,
+        origin: isFallback ? 'local_fallback' : 'swagger_real',
+      };
+    };
 
     // If client requested Direct Browser mode:
     if (clientMode === 'browser_direct') {
@@ -418,11 +453,10 @@ export const api = {
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify(swaggerPayload),
         });
-        const data = await res.json();
-        return {
-          ...data,
-          origin: 'swagger_real',
-        };
+        if (res.ok) {
+          const data = await res.json();
+          return normalizeAlbumResponse(data, false);
+        }
       } catch (err: unknown) {
         // Fallback to /album/create
         try {
@@ -431,8 +465,10 @@ export const api = {
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify(swaggerPayload),
           });
-          const data2 = await res2.json();
-          return { ...data2, origin: 'swagger_real' };
+          if (res2.ok) {
+            const data2 = await res2.json();
+            return normalizeAlbumResponse(data2, false);
+          }
         } catch {
           return {
             success: false,
@@ -452,22 +488,43 @@ export const api = {
       });
 
       const isFallback = res.headers.get('X-Backend-Origin') === 'local-mock-fallback';
-      const data = await res.json();
+      if (res.ok) {
+        const data = await res.json();
+        return normalizeAlbumResponse(data, isFallback);
+      } else {
+        const errText = await res.text();
+        let errJson: any = {};
+        try {
+          errJson = JSON.parse(errText);
+        } catch {
+          errJson = { message: errText };
+        }
+        return {
+          success: false,
+          message: errJson.message || `Erreur serveur (HTTP ${res.status})`,
+        };
+      }
+    } catch {
+      // Try /album/create fallback
+      try {
+        const res2 = await fetch('/album/create', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(swaggerPayload),
+        });
+        if (res2.ok) {
+          const data2 = await res2.json();
+          return normalizeAlbumResponse(data2, true);
+        }
+      } catch (fallbackErr) {
+        return {
+          success: false,
+          message: fallbackErr instanceof Error ? fallbackErr.message : 'Erreur réseau',
+        };
+      }
       return {
-        ...data,
-        origin: isFallback ? 'local_fallback' : 'swagger_real',
-      };
-    } catch (err: unknown) {
-      // Try /album/create
-      const res = await fetch('/album/create', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(swaggerPayload),
-      });
-      const data = await res.json();
-      return {
-        ...data,
-        origin: 'local_fallback',
+        success: false,
+        message: "Erreur lors de la création de l'album",
       };
     }
   },
@@ -556,75 +613,135 @@ export const api = {
     }
   },
 
-  // ================= ARTISTS & USERS (/user/registerArtist, /user/allArtist) =================
+  // ================= ARTISTS & USERS (/user/allArtist & /user/allClient) =================
   async getAllArtists(): Promise<Artist[]> {
+    const list: Artist[] = [];
+    const seenIds = new Set<string>();
+
+    // 1. Fetch artists from /user/allArtist
     try {
-      // First try /user/allArtist (live backend)
       const res = await fetch('/user/allArtist');
       if (res.ok) {
-        const data = await res.json();
-        const rawList: any[] = Array.isArray(data) ? data : data.artists || [];
-        const serverArtists: Artist[] = rawList.map((a: any) => ({
-          trackingId: a.trackingId || '',
-          firstName: a.firstName || a.FirstName || '',
-          lastName: a.lastName || a.LastName || '',
-          alias: a.alias || a.Alias || '',
-          phone: a.phone || a.Phone || '',
-          email: a.email || a.Email || '',
-          password: a.password || a.Password || '',
-          description: a.description || '',
-          connectionCode: a.connectionCode || a.activation_code || (a.Password ? a.Password.slice(0, 10) : 'ART-KEY'),
-          createdAt: a.createdAt || new Date().toISOString(),
-          rawResponse: a,
-        }));
-
-        // Merge with local artists saved in browser
-        const storedLocal = localStorage.getItem('titan_registered_artists');
-        if (storedLocal) {
-          try {
-            const localArr: Artist[] = JSON.parse(storedLocal);
-            const map = new Map<string, Artist>();
-            serverArtists.forEach((a) => map.set(a.trackingId, a));
-            localArr.forEach((a) => {
-              if (!map.has(a.trackingId)) map.set(a.trackingId, a);
-            });
-            return Array.from(map.values());
-          } catch {
-            return serverArtists;
-          }
-        }
-        return serverArtists;
-      }
-    } catch {
-      // fallback
-    }
-
-    try {
-      const res2 = await fetch('/user/all');
-      const data2 = await res2.json();
-      const rawList2: any[] = Array.isArray(data2) ? data2 : data2.artists || [];
-      return rawList2.map((a: any) => ({
-        trackingId: a.trackingId || '',
-        firstName: a.firstName || a.FirstName || '',
-        lastName: a.lastName || a.LastName || '',
-        alias: a.alias || a.Alias || '',
-        phone: a.phone || a.Phone || '',
-        email: a.email || a.Email || '',
-        password: a.password || a.Password || '',
-        description: a.description || '',
-        connectionCode: a.connectionCode || a.activation_code || 'ART-KEY',
-        createdAt: a.createdAt || new Date().toISOString(),
-        rawResponse: a,
-      }));
-    } catch {
-      const storedLocal = localStorage.getItem('titan_registered_artists');
-      if (storedLocal) {
+        const text = await res.text();
         try {
-          return JSON.parse(storedLocal);
-        } catch {}
+          const data = JSON.parse(text);
+          const rawArtists: any[] = Array.isArray(data) ? data : data.artists || [];
+          rawArtists.forEach((a: any) => {
+            const trackingId = a.trackingId || a.id || '';
+            if (trackingId && !seenIds.has(trackingId)) {
+              seenIds.add(trackingId);
+              list.push({
+                trackingId,
+                firstName: a.firstName || a.FirstName || '',
+                lastName: a.lastName || a.LastName || '',
+                alias: a.alias || a.Alias || `${a.firstName || ''} ${a.lastName || ''}`.trim() || 'Artiste',
+                phone: a.phone || a.Phone || '',
+                email: a.email || a.Email || '',
+                password: a.password || a.Password || '',
+                description: a.description || 'Artiste enregistré sur Swagger',
+                connectionCode: a.connectionCode || a.activation_code || (a.password ? a.password.slice(0, 10) : 'ART-KEY'),
+                createdAt: a.createdAt || new Date().toISOString(),
+                role: 'ARTIST',
+                rawResponse: a,
+              });
+            }
+          });
+        } catch {
+          // ignore parse error
+        }
       }
-      return [];
+    } catch (err) {
+      console.warn('Erreur lecture /user/allArtist', err);
     }
+
+    // 2. Fetch clients from /user/allClient (like John Doe, Kofi Mensah, Marie Dupont...)
+    try {
+      const resClient = await fetch('/user/allClient');
+      if (resClient.ok) {
+        const textClient = await resClient.text();
+        try {
+          const dataClient = JSON.parse(textClient);
+          const rawClients: any[] = Array.isArray(dataClient) ? dataClient : dataClient.clients || [];
+          rawClients.forEach((c: any) => {
+            const trackingId = c.trackingId || c.id || '';
+            if (trackingId && !seenIds.has(trackingId)) {
+              seenIds.add(trackingId);
+              const fullName = `${c.firstName || ''} ${c.lastName || ''}`.trim();
+              list.push({
+                trackingId,
+                firstName: c.firstName || '',
+                lastName: c.lastName || '',
+                alias: c.alias || fullName || 'Client',
+                phone: c.phone || '',
+                email: c.email || '',
+                password: c.password || '',
+                description: c.description || 'Compte Client enregistré sur Swagger',
+                connectionCode: c.connectionCode || 'CLIENT-KEY',
+                createdAt: c.createdAt || new Date().toISOString(),
+                role: 'CLIENT',
+                rawResponse: c,
+              });
+            }
+          });
+        } catch {
+          // ignore parse error
+        }
+      }
+    } catch (err) {
+      console.warn('Erreur lecture /user/allClient', err);
+    }
+
+    // 3. Fallback to /user/all if list empty
+    if (list.length === 0) {
+      try {
+        const res2 = await fetch('/user/all');
+        if (res2.ok) {
+          const text2 = await res2.text();
+          const data2 = JSON.parse(text2);
+          const rawList2: any[] = Array.isArray(data2) ? data2 : data2.artists || [];
+          rawList2.forEach((a: any) => {
+            const trackingId = a.trackingId || '';
+            if (trackingId && !seenIds.has(trackingId)) {
+              seenIds.add(trackingId);
+              list.push({
+                trackingId,
+                firstName: a.firstName || '',
+                lastName: a.lastName || '',
+                alias: a.alias || `${a.firstName || ''} ${a.lastName || ''}`.trim() || 'Artiste',
+                phone: a.phone || '',
+                email: a.email || '',
+                password: a.password || '',
+                description: a.description || '',
+                connectionCode: 'ART-KEY',
+                createdAt: new Date().toISOString(),
+                role: 'ARTIST',
+                rawResponse: a,
+              });
+            }
+          });
+        }
+      } catch {
+        // fallback
+      }
+    }
+
+    // 4. Merge with local storage
+    const storedLocal = localStorage.getItem('titan_registered_artists');
+    if (storedLocal) {
+      try {
+        const localArr: Artist[] = JSON.parse(storedLocal);
+        localArr.forEach((la) => {
+          if (la.trackingId && !seenIds.has(la.trackingId)) {
+            seenIds.add(la.trackingId);
+            list.push(la);
+          }
+        });
+      } catch {
+        // ignore
+      }
+    }
+
+    return list;
   },
 
   async registerArtist(payload: {
@@ -658,7 +775,7 @@ export const api = {
     };
 
     const clientMode = localStorage.getItem('backend_client_mode') || 'proxy';
-    const clientTarget = (localStorage.getItem('backend_target_url') || 'http://localhost:8081').replace(/\/$/, '');
+    const clientTarget = (localStorage.getItem('backend_target_url') || 'https://titan-tune-reset.onrender.com').replace(/\/$/, '');
 
     let resultData: any;
     let isRealSwagger = false;
@@ -787,7 +904,7 @@ export const api = {
     };
 
     const clientMode = localStorage.getItem('backend_client_mode') || 'proxy';
-    const clientTarget = (localStorage.getItem('backend_target_url') || 'https://stale-ads-hide.loca.lt').replace(/\/$/, '');
+    const clientTarget = (localStorage.getItem('backend_target_url') || 'https://titan-tune-reset.onrender.com').replace(/\/$/, '');
 
     // Browser direct call if configured
     if (clientMode === 'browser_direct') {
@@ -853,9 +970,21 @@ export const api = {
 
   // ================= NOTIFICATIONS =================
   async getAllNotifications(): Promise<AppNotification[]> {
-    const res = await fetch('/notification/all');
-    const data = await res.json();
-    return data.notifications || [];
+    try {
+      const res = await fetch('/notification/all');
+      if (res.ok) {
+        const text = await res.text();
+        try {
+          const data = JSON.parse(text);
+          return Array.isArray(data) ? data : data.notifications || [];
+        } catch {
+          return [];
+        }
+      }
+    } catch {
+      // Safe fallback on 401 or network error
+    }
+    return [];
   },
 
   async broadcastNotification(payload: {
@@ -956,8 +1085,8 @@ export const api = {
       // Fallback
     }
     return {
-      targetUrl: 'http://localhost:8081',
-      swaggerUrl: 'http://localhost:8081/swagger-ui/index.html',
+      targetUrl: 'https://titan-tune-reset.onrender.com',
+      swaggerUrl: 'https://titan-tune-reset.onrender.com/swagger-ui/index.html',
       isConnected: false,
       mode: 'proxy_with_fallback',
       errorMessage: 'Backend inaccessible',

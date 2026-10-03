@@ -15,6 +15,9 @@ import {
   RefreshCw,
   User,
   Copy,
+  Folder,
+  FolderOpen,
+  ListMusic,
 } from 'lucide-react';
 import { api } from '../services/api';
 import { Playlist, Song } from '../types';
@@ -51,6 +54,24 @@ export const PlaylistsManagerPage: React.FC<PlaylistsManagerPageProps> = ({
 
   // Search inside add song modal
   const [songSearch, setSongSearch] = useState('');
+
+  // Inspect other playlists containing a song (/playlist/getAllSongForPlaylist/{trackingIdSong})
+  const [inspectingSong, setInspectingSong] = useState<{
+    song: Song;
+    playlists: Playlist[];
+    loading: boolean;
+  } | null>(null);
+
+  const handleInspectSongPlaylists = async (song: Song) => {
+    setInspectingSong({ song, playlists: [], loading: true });
+    try {
+      // Calls endpoint: GET /playlist/getAllSongForPlaylist/{trackingIdSong}
+      const pls = await api.getAllPlaylistsForSong(song.trackingIdSong);
+      setInspectingSong({ song, playlists: pls, loading: false });
+    } catch {
+      setInspectingSong({ song, playlists: [], loading: false });
+    }
+  };
 
   const distinctClients = Array.from(new Set(playlists.map((p) => p.clientTrackingId).filter(Boolean)));
 
@@ -267,27 +288,28 @@ export const PlaylistsManagerPage: React.FC<PlaylistsManagerPageProps> = ({
             <div className="flex items-center justify-between pt-2 border-t border-gray-100 text-xs">
               <button
                 onClick={() => setSelectedPlaylist(pl)}
-                className="text-gray-600 hover:text-black font-semibold flex items-center gap-1 px-2 py-1 rounded-lg hover:bg-gray-100 transition"
+                className="text-[#FF6B6B] hover:text-[#fa5a5a] font-bold flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-rose-50 hover:bg-rose-100 transition cursor-pointer"
               >
-                <Eye size={14} />
-                <span>Voir morceaux ({pl.songs?.length || 0})</span>
+                <FolderOpen size={15} />
+                <span>Ouvrir le dossier ({pl.songs?.length || 0})</span>
               </button>
 
-              <div className="flex items-center gap-1">
+              <div className="flex items-center gap-1.5">
                 {/* Add song button (/playlist/addSong) */}
                 <button
                   onClick={() => setAddSongModalPlaylist(pl)}
-                  className="text-rose-600 hover:bg-rose-50 font-semibold flex items-center gap-1 px-2 py-1 rounded-lg transition"
+                  className="text-gray-700 hover:text-black font-semibold flex items-center gap-1 px-2.5 py-1.5 rounded-xl border border-gray-200 hover:bg-gray-50 transition cursor-pointer"
+                  title="Ajouter un morceau avec POST /playlist/addSong"
                 >
-                  <Plus size={14} />
+                  <Plus size={14} className="text-[#FF6B6B]" />
                   <span>Ajouter titre</span>
                 </button>
 
                 {/* Edit metadata (/playlist/update) */}
                 <button
                   onClick={() => handleOpenEdit(pl)}
-                  className="text-gray-500 hover:text-black p-1.5 rounded-lg hover:bg-gray-100 transition"
-                  title="Modifier la playlist"
+                  className="text-gray-500 hover:text-black p-1.5 rounded-xl hover:bg-gray-100 transition cursor-pointer"
+                  title="Modifier titre ou image (PUT /playlist/update)"
                 >
                   <Edit size={14} />
                 </button>
@@ -300,47 +322,76 @@ export const PlaylistsManagerPage: React.FC<PlaylistsManagerPageProps> = ({
       {/* Detail / Song list Modal (/playlist/get/:trackingId) */}
       {selectedPlaylist && (
         <div className="fixed inset-0 z-50 bg-black/50 backdrop-blur-xs flex items-center justify-center p-4 animate-in fade-in duration-150">
-          <div className="bg-white rounded-2xl max-w-lg w-full max-h-[85vh] flex flex-col p-5 shadow-2xl space-y-3">
+          <div className="bg-white rounded-3xl max-w-lg w-full max-h-[85vh] flex flex-col p-5 shadow-2xl space-y-3">
             <div className="flex items-start justify-between border-b pb-3 shrink-0">
               <div className="flex items-center gap-3">
                 <img
                   src={selectedPlaylist.imageAlbum}
                   alt={selectedPlaylist.titre}
-                  className="w-12 h-12 rounded-xl object-cover"
+                  className="w-14 h-14 rounded-2xl object-cover shadow-sm border border-gray-200"
                 />
                 <div>
-                  <h3 className="text-sm font-bold text-gray-900">{selectedPlaylist.titre}</h3>
+                  <div className="flex items-center gap-2">
+                    <span className="text-[10px] font-bold uppercase tracking-wider text-[#FF6B6B] bg-rose-50 px-2 py-0.5 rounded-md flex items-center gap-1">
+                      <FolderOpen size={11} /> Dossier
+                    </span>
+                    <button
+                      onClick={() => handleToggleVisibility(selectedPlaylist)}
+                      className={`text-[10px] font-semibold px-2 py-0.5 rounded-md border transition flex items-center gap-1 cursor-pointer ${
+                        selectedPlaylist.visibilite
+                          ? 'bg-emerald-50 text-emerald-700 border-emerald-200'
+                          : 'bg-gray-100 text-gray-700 border-gray-200'
+                      }`}
+                      title="Cliquer pour changer la visibilité (PUT /playlist/changeVisibilite)"
+                    >
+                      {selectedPlaylist.visibilite ? <Globe size={10} /> : <Lock size={10} />}
+                      <span>{selectedPlaylist.visibilite ? 'Publique 🌐' : 'Privée 🔒'}</span>
+                    </button>
+                  </div>
+                  <h3 className="text-base font-bold text-gray-900 mt-0.5">{selectedPlaylist.titre}</h3>
                   <div className="flex items-center gap-2 mt-0.5 text-xs text-gray-500">
                     <span className="font-mono text-[10px] text-gray-400">
                       {selectedPlaylist.trackingIdPlaylist}
                     </span>
-                    <span>•</span>
-                    <span>{selectedPlaylist.visibilite ? 'Publique 🌐' : 'Privée 🔒'}</span>
                   </div>
                 </div>
               </div>
               <button
                 onClick={() => setSelectedPlaylist(null)}
-                className="text-gray-400 hover:text-black p-1"
+                className="text-gray-400 hover:text-black p-1 rounded-lg hover:bg-gray-100"
               >
                 <X size={18} />
               </button>
             </div>
 
+            {/* Swagger Endpoints guide in folder */}
+            <div className="p-2.5 bg-rose-50/60 rounded-xl border border-rose-100 text-[10px] font-mono text-gray-600 flex flex-wrap items-center justify-between gap-1.5 shrink-0">
+              <span className="font-bold text-rose-800">Endpoints Swagger :</span>
+              <span className="bg-white px-1.5 py-0.5 rounded border border-rose-200 text-emerald-700">
+                POST /playlist/addSong
+              </span>
+              <span className="bg-white px-1.5 py-0.5 rounded border border-rose-200 text-red-700">
+                DELETE /playlist/removeSongForPlaylist
+              </span>
+            </div>
+
             <div className="flex-1 overflow-y-auto space-y-2 pr-1">
               {(!selectedPlaylist.songs || selectedPlaylist.songs.length === 0) ? (
-                <div className="text-center py-8 text-gray-400 text-xs">
-                  <Music className="mx-auto mb-2 text-gray-300" size={24} />
-                  Cette playlist ne contient aucun morceau pour le moment.
-                  <div className="mt-3">
+                <div className="text-center py-10 text-gray-400 text-xs">
+                  <Music className="mx-auto mb-2 text-gray-300" size={28} />
+                  <p className="font-semibold text-gray-700">Ce dossier est vide</p>
+                  <p className="text-[11px] text-gray-400 mt-0.5">
+                    Ajoutez vos chansons préférées dans ce dossier
+                  </p>
+                  <div className="mt-4">
                     <button
                       onClick={() => {
                         setAddSongModalPlaylist(selectedPlaylist);
                       }}
-                      className="px-3 py-1.5 bg-[#FF6B6B] text-white rounded-lg text-xs font-semibold hover:bg-[#fa5a5a] transition inline-flex items-center gap-1"
+                      className="px-3.5 py-2 bg-[#FF6B6B] text-white rounded-xl text-xs font-bold hover:bg-[#fa5a5a] transition inline-flex items-center gap-1.5 shadow-xs cursor-pointer"
                     >
-                      <Plus size={14} />
-                      Ajouter une chanson (/playlist/addSong)
+                      <Plus size={15} />
+                      <span>Ajouter des chansons (/playlist/addSong)</span>
                     </button>
                   </div>
                 </div>
@@ -366,10 +417,19 @@ export const PlaylistsManagerPage: React.FC<PlaylistsManagerPageProps> = ({
                     <div className="flex items-center gap-1.5 shrink-0">
                       <button
                         onClick={() => onPlaySong(song)}
-                        className="p-1.5 rounded-lg bg-white border border-gray-200 text-orange-600 hover:bg-orange-50 transition"
+                        className="p-1.5 rounded-lg bg-white border border-gray-200 text-orange-600 hover:bg-orange-50 transition cursor-pointer"
                         title="Écouter"
                       >
                         <Music size={14} />
+                      </button>
+
+                      {/* Inspect containing playlists (/playlist/getAllSongForPlaylist/{trackingIdSong}) */}
+                      <button
+                        onClick={() => handleInspectSongPlaylists(song)}
+                        className="p-1.5 rounded-lg bg-white border border-gray-200 text-purple-600 hover:bg-purple-50 transition cursor-pointer"
+                        title="Voir toutes les playlists contenant ce titre (/playlist/getAllSongForPlaylist)"
+                      >
+                        <ListMusic size={14} />
                       </button>
 
                       {/* Remove Song from Playlist (/playlist/removeSongForPlaylist) */}
@@ -380,8 +440,8 @@ export const PlaylistsManagerPage: React.FC<PlaylistsManagerPageProps> = ({
                             song.trackingIdSong
                           )
                         }
-                        className="p-1.5 rounded-lg text-gray-400 hover:text-red-600 hover:bg-red-50 transition"
-                        title="Retirer de la playlist (/playlist/removeSongForPlaylist)"
+                        className="p-1.5 rounded-lg text-gray-400 hover:text-red-600 hover:bg-red-50 transition cursor-pointer"
+                        title="Retirer de la playlist (DELETE /playlist/removeSongForPlaylist)"
                       >
                         <Trash2 size={14} />
                       </button>
@@ -414,11 +474,11 @@ export const PlaylistsManagerPage: React.FC<PlaylistsManagerPageProps> = ({
       {/* Add Song to Playlist Modal (/playlist/addSong) */}
       {addSongModalPlaylist && (
         <div className="fixed inset-0 z-50 bg-black/50 backdrop-blur-xs flex items-center justify-center p-4 animate-in fade-in duration-150">
-          <div className="bg-white rounded-2xl max-w-md w-full max-h-[85vh] flex flex-col p-5 shadow-2xl space-y-3">
+          <div className="bg-white rounded-3xl max-w-md w-full max-h-[85vh] flex flex-col p-5 shadow-2xl space-y-3">
             <div className="flex items-start justify-between border-b pb-3 shrink-0">
               <div>
                 <h3 className="text-sm font-bold text-gray-900">
-                  Ajouter un morceau (/playlist/addSong)
+                  Ajouter un morceau au dossier
                 </h3>
                 <p className="text-xs text-rose-600 font-semibold">{addSongModalPlaylist.titre}</p>
               </div>
@@ -428,6 +488,17 @@ export const PlaylistsManagerPage: React.FC<PlaylistsManagerPageProps> = ({
               >
                 <X size={18} />
               </button>
+            </div>
+
+            {/* Swagger Payload Schema snippet */}
+            <div className="p-2 rounded-xl bg-gray-50 border border-gray-200 text-[10px] font-mono text-gray-600 shrink-0">
+              <span className="font-bold text-rose-600">POST /playlist/addSong</span>
+              <pre className="text-[9px] text-gray-500 mt-0.5">
+{`{
+  "trackingIdSong": "...",
+  "trackingIdPlaylist": "${addSongModalPlaylist.trackingIdPlaylist}"
+}`}
+              </pre>
             </div>
 
             <div className="relative shrink-0">
@@ -561,6 +632,76 @@ export const PlaylistsManagerPage: React.FC<PlaylistsManagerPageProps> = ({
                 </button>
               </div>
             </form>
+          </div>
+        </div>
+      )}
+
+      {/* Inspect Song Playlists Modal (/playlist/getAllSongForPlaylist/{trackingIdSong}) */}
+      {inspectingSong && (
+        <div className="fixed inset-0 z-50 bg-black/50 backdrop-blur-xs flex items-center justify-center p-4 animate-in fade-in duration-150">
+          <div className="bg-white rounded-3xl max-w-md w-full p-5 shadow-2xl space-y-4">
+            <div className="flex items-center justify-between border-b pb-3">
+              <div>
+                <h3 className="text-sm font-bold text-gray-900">
+                  Playlists associées à ce titre
+                </h3>
+                <p className="text-xs text-rose-600 font-semibold truncate mt-0.5">
+                  {inspectingSong.song.titre}
+                </p>
+              </div>
+              <button
+                onClick={() => setInspectingSong(null)}
+                className="text-gray-400 hover:text-black p-1"
+              >
+                <X size={18} />
+              </button>
+            </div>
+
+            <div className="p-2 rounded-xl bg-purple-50 text-[10px] font-mono text-purple-800 border border-purple-200">
+              GET /playlist/getAllSongForPlaylist/{inspectingSong.song.trackingIdSong}
+            </div>
+
+            {inspectingSong.loading ? (
+              <div className="text-center py-6 text-xs text-gray-500">
+                <RefreshCw size={20} className="animate-spin mx-auto text-purple-600 mb-2" />
+                Recherche des playlists contenant ce titre...
+              </div>
+            ) : inspectingSong.playlists.length === 0 ? (
+              <div className="text-center py-6 text-xs text-gray-500">
+                Ce morceau ne figure dans aucune autre playlist.
+              </div>
+            ) : (
+              <div className="space-y-2 max-h-56 overflow-y-auto pr-1">
+                {inspectingSong.playlists.map((pl) => (
+                  <div
+                    key={pl.trackingIdPlaylist}
+                    className="p-2.5 bg-gray-50 rounded-xl flex items-center justify-between gap-2 text-xs"
+                  >
+                    <div className="flex items-center gap-2 min-w-0">
+                      <img
+                        src={pl.imageAlbum}
+                        alt={pl.titre}
+                        className="w-8 h-8 rounded-lg object-cover shrink-0"
+                      />
+                      <div className="min-w-0">
+                        <p className="font-semibold text-gray-900 truncate">{pl.titre}</p>
+                        <p className="text-[10px] text-gray-400 font-mono truncate">{pl.trackingIdPlaylist}</p>
+                      </div>
+                    </div>
+                    <span className="text-[10px] px-2 py-0.5 rounded-full font-medium shrink-0 bg-purple-100 text-purple-800">
+                      {pl.visibilite ? 'Publique 🌐' : 'Privée 🔒'}
+                    </span>
+                  </div>
+                ))}
+              </div>
+            )}
+
+            <button
+              onClick={() => setInspectingSong(null)}
+              className="w-full py-2 bg-gray-100 hover:bg-gray-200 text-xs font-semibold text-gray-700 rounded-xl transition"
+            >
+              Fermer
+            </button>
           </div>
         </div>
       )}

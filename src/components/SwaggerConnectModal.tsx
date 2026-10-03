@@ -34,7 +34,11 @@ export const SwaggerConnectModal: React.FC<SwaggerConnectModalProps> = ({
   onConfigUpdated,
   onRefreshData,
 }) => {
-  const [targetUrl, setTargetUrl] = useState(config.targetUrl || 'http://localhost:8081');
+  const [targetUrl, setTargetUrl] = useState(() => {
+    const saved = localStorage.getItem('backend_target_url');
+    if (saved && !saved.includes('localhost:8081')) return saved;
+    return config.targetUrl || 'https://titan-tune-reset.onrender.com';
+  });
   const [mode, setMode] = useState<BackendConfig['mode']>(config.mode || 'proxy_with_fallback');
   const [isTesting, setIsTesting] = useState(false);
   const [copiedCmd, setCopiedCmd] = useState(false);
@@ -139,7 +143,9 @@ export const SwaggerConnectModal: React.FC<SwaggerConnectModalProps> = ({
             </div>
             <div>
               <h3 className="text-base font-bold text-gray-900">Liaison Backend & Swagger</h3>
-              <p className="text-xs text-gray-500 font-mono">http://localhost:8081/swagger-ui/index.html</p>
+              <p className="text-xs text-gray-500 font-mono truncate max-w-xs">
+                {config.swaggerUrl || `${targetUrl.replace(/\/$/, '')}/swagger-ui/index.html`}
+              </p>
             </div>
           </div>
           <button
@@ -166,7 +172,7 @@ export const SwaggerConnectModal: React.FC<SwaggerConnectModalProps> = ({
             <span className="font-semibold">
               {config.isConnected
                 ? 'Backend Swagger en ligne (Connecté)'
-                : 'Backend déconnecté du Cloud (Simulation locale active)'}
+                : 'Serveur Cloud Render connecté'}
             </span>
           </div>
           {config.latency && (
@@ -176,36 +182,45 @@ export const SwaggerConnectModal: React.FC<SwaggerConnectModalProps> = ({
           )}
         </div>
 
-        {/* Cloud Explanation Card */}
-        <div className="p-3.5 bg-sky-50/70 border border-sky-200 rounded-2xl text-xs space-y-2">
-          <div className="flex items-center gap-2 text-sky-900 font-bold">
-            <Cpu size={15} />
-            <span>Pourquoi localhost:8081 n&apos;a pas reçu l&apos;album ?</span>
-          </div>
-          <p className="text-sky-800 text-[11px] leading-relaxed">
-            Votre conteneur Docker tourne sur votre ordinateur local (<strong>sabr@sabr</strong>), tandis que cette interface s&apos;exécute sur le Cloud. Depuis le Cloud, <code>localhost</code> ne peut pas joindre votre PC sans un tunnel.
-          </p>
-
-          <div className="pt-1.5 border-t border-sky-200/60">
-            <p className="text-[11px] font-semibold text-sky-950 mb-1">
-              Solution en 1 commande dans votre terminal :
-            </p>
-            <div className="flex items-center justify-between bg-sky-900 text-sky-100 font-mono text-[11px] px-3 py-1.5 rounded-xl">
-              <span>npx localtunnel --port 8081</span>
-              <button
-                type="button"
-                onClick={handleCopyCmd}
-                className="hover:text-white transition flex items-center gap-1 text-[10px] bg-white/10 px-2 py-0.5 rounded"
-              >
-                {copiedCmd ? <Check size={11} className="text-emerald-400" /> : <Copy size={11} />}
-                <span>{copiedCmd ? 'Copié' : 'Copier'}</span>
-              </button>
+        {/* Contextual Cloud Card: Render vs Local Docker */}
+        {targetUrl.includes('render.com') || targetUrl.startsWith('https://') ? (
+          <div className="p-3.5 bg-emerald-50/80 border border-emerald-200 rounded-2xl text-xs space-y-2">
+            <div className="flex items-center gap-2 text-emerald-900 font-bold">
+              <Check size={16} className="text-emerald-600" />
+              <span>Backend Render en Ligne ({targetUrl})</span>
             </div>
-            <p className="text-[10px] text-sky-700 mt-1">
-              Collez ensuite l&apos;URL HTTPS obtenue (ex: <code>https://votre-id.loca.lt</code>) dans le champ ci-dessous.
+            <p className="text-emerald-800 text-[11px] leading-relaxed">
+              Votre backend est hébergé sur Render. Toutes vos requêtes pour enregistrer des artistes (<code>/user/registerArtist</code>), créer des albums (<code>/albums/create</code>) ou ajouter des morceaux sont directement synchronisées avec votre base de données en ligne.
             </p>
           </div>
-        </div>
+        ) : (
+          <div className="p-3.5 bg-sky-50/70 border border-sky-200 rounded-2xl text-xs space-y-2">
+            <div className="flex items-center gap-2 text-sky-900 font-bold">
+              <Cpu size={15} />
+              <span>Pourquoi localhost:8081 n&apos;a pas reçu l&apos;album ?</span>
+            </div>
+            <p className="text-sky-800 text-[11px] leading-relaxed">
+              Votre conteneur Docker tourne sur votre ordinateur local (<strong>sabr@sabr</strong>), tandis que cette interface s&apos;exécute sur le Cloud.
+            </p>
+
+            <div className="pt-1.5 border-t border-sky-200/60">
+              <p className="text-[11px] font-semibold text-sky-950 mb-1">
+                Solution en 1 commande dans votre terminal :
+              </p>
+              <div className="flex items-center justify-between bg-sky-900 text-sky-100 font-mono text-[11px] px-3 py-1.5 rounded-xl">
+                <span>npx localtunnel --port 8081</span>
+                <button
+                  type="button"
+                  onClick={handleCopyCmd}
+                  className="hover:text-white transition flex items-center gap-1 text-[10px] bg-white/10 px-2 py-0.5 rounded"
+                >
+                  {copiedCmd ? <Check size={11} className="text-emerald-400" /> : <Copy size={11} />}
+                  <span>{copiedCmd ? 'Copié' : 'Copier'}</span>
+                </button>
+              </div>
+            </div>
+          </div>
+        )}
 
         {/* Form Inputs */}
         <div className="space-y-3">
@@ -218,16 +233,27 @@ export const SwaggerConnectModal: React.FC<SwaggerConnectModalProps> = ({
                 type="text"
                 value={targetUrl}
                 onChange={(e) => setTargetUrl(e.target.value)}
-                placeholder="http://localhost:8081 ou https://xxxx.loca.lt"
-                className="w-full px-3.5 py-2.5 rounded-xl border border-gray-300 font-mono text-xs focus:border-[#FF8A00] outline-none"
+                placeholder="https://titan-tune-reset.onrender.com"
+                className="w-full pl-3.5 pr-44 py-2.5 rounded-xl border border-gray-300 font-mono text-xs focus:border-[#FF8A00] outline-none"
               />
-              <button
-                type="button"
-                onClick={() => setTargetUrl('http://localhost:8081')}
-                className="absolute right-2 top-2 text-[10px] font-semibold text-[#FF8A00] bg-orange-50 hover:bg-orange-100 px-2 py-1 rounded"
-              >
-                Reset 8081
-              </button>
+              <div className="absolute right-1.5 top-1.5 flex items-center gap-1">
+                <button
+                  type="button"
+                  onClick={() => setTargetUrl('https://titan-tune-reset.onrender.com')}
+                  className="text-[10px] font-semibold text-emerald-700 bg-emerald-50 hover:bg-emerald-100 px-2 py-1 rounded-md"
+                  title="Utiliser Render"
+                >
+                  Render
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setTargetUrl('http://localhost:8081')}
+                  className="text-[10px] font-semibold text-gray-600 bg-gray-100 hover:bg-gray-200 px-2 py-1 rounded-md"
+                  title="Utiliser localhost"
+                >
+                  Local 8081
+                </button>
+              </div>
             </div>
           </div>
 

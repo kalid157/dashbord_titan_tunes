@@ -60,9 +60,7 @@ export interface Song {
 // Swagger Backend Target Configuration
 let targetBackendUrl =
   process.env.SWAGGER_BACKEND_URL ||
-  (process.env.K_SERVICE || process.env.CLOUD_RUN_SERVICE
-    ? 'https://stale-ads-hide.loca.lt'
-    : 'http://localhost:8081');
+  'https://titan-tune-reset.onrender.com';
 let backendMode: 'proxy_with_fallback' | 'proxy_strict' | 'mock' = 'proxy_with_fallback';
 
 export interface Playlist {
@@ -461,7 +459,7 @@ app.get('/api/backend/status', async (_req: Request, res: Response) => {
       // Try /v3/api-docs or /swagger-ui/index.html
       const controller2 = new AbortController();
       const timeout2 = setTimeout(() => controller2.abort(), 4000);
-      const pingDocs = await fetch(`${targetBackendUrl}/v3/api-docs`, {
+      const pingDocs = await fetch(`${targetBackendUrl}/swagger-ui/index.html`, {
         headers: tunnelHeaders,
         signal: controller2.signal,
       }).catch(() => null);
@@ -470,7 +468,7 @@ app.get('/api/backend/status', async (_req: Request, res: Response) => {
         isConnected = true;
         latency = Math.round(performance.now() - start);
       } else {
-        errorMessage = 'Le backend ne répond pas actuellement sur le tunnel';
+        errorMessage = 'Le backend ne répond pas actuellement sur l\'URL Swagger configurée';
       }
     }
   } catch (err: unknown) {
@@ -503,9 +501,163 @@ app.post('/api/backend/config', (req: Request, res: Response) => {
   });
 });
 
+// VIP / Free Access Control Overrides in Memory
+const albumAccessOverrides = new Map<string, { isFree: boolean; isVip: boolean }>();
+const songAccessOverrides = new Map<string, { isFree: boolean; isVip: boolean }>();
+
+// Helper to enrich albums with position (order) and computed access (1st free, others VIP)
+const enrichAlbumsWithAccess = (albumList: any[]) => {
+  // Group albums by artist
+  const artistAlbumsMap = new Map<string, any[]>();
+  albumList.forEach((alb) => {
+    const artistKey = (alb.nomArtiste || alb.artisteTrackingId || 'Artiste').trim();
+    if (!artistAlbumsMap.has(artistKey)) {
+      artistAlbumsMap.set(artistKey, []);
+    }
+    artistAlbumsMap.get(artistKey)!.push(alb);
+  });
+
+  const result: any[] = [];
+  artistAlbumsMap.forEach((group) => {
+    // Sort albums chronologically (older first)
+    const sorted = [...group].sort((a, b) => {
+      const yearA = Number(a.annee) || 0;
+      const yearB = Number(b.annee) || 0;
+      if (yearA !== yearB && yearA > 0 && yearB > 0) return yearA - yearB;
+      const dateA = a.createdAt ? new Date(a.createdAt).getTime() : 0;
+      const dateB = b.createdAt ? new Date(b.createdAt).getTime() : 0;
+      return dateA - dateB;
+    });
+
+    sorted.forEach((alb, idx) => {
+      const tid = alb.trackingId || alb.trackingIdAlbum || '';
+      const override = albumAccessOverrides.get(tid);
+
+      const isOverridden = Boolean(override);
+      const isFree = override ? override.isFree : idx === 0;
+      const isVip = override ? override.isVip : idx > 0;
+
+      result.push({
+        ...alb,
+        order: idx,
+        isFree,
+        isVip,
+        isOverridden,
+      });
+    });
+  });
+
+  return result;
+};
+
+// Helper to enrich songs with position and computed access (1st free, others VIP)
+const enrichSongsWithAccess = (songList: any[]) => {
+  // Group songs by artist (or album)
+  const artistSongsMap = new Map<string, any[]>();
+  songList.forEach((s) => {
+    const artistKey = (s.artiste || s.artisteTrackingId || 'Artiste').trim();
+    if (!artistSongsMap.has(artistKey)) {
+      artistSongsMap.set(artistKey, []);
+    }
+    artistSongsMap.get(artistKey)!.push(s);
+  });
+
+  const result: any[] = [];
+  artistSongsMap.forEach((group) => {
+    // Sort songs chronologically (older first)
+    const sorted = [...group].sort((a, b) => {
+      const dateA = a.createdAt ? new Date(a.createdAt).getTime() : 0;
+      const dateB = b.createdAt ? new Date(b.createdAt).getTime() : 0;
+      return dateA - dateB;
+    });
+
+    sorted.forEach((s, idx) => {
+      const tid = s.trackingIdSong || s.trackingId || '';
+      const override = songAccessOverrides.get(tid);
+
+      const isOverridden = Boolean(override);
+      const isFree = override ? override.isFree : idx === 0;
+      const isVip = override ? override.isVip : idx > 0;
+
+      result.push({
+        ...s,
+        order: idx,
+        isFree,
+        isVip,
+        isOverridden,
+      });
+    });
+  });
+
+  return result;
+};
+
+// Access Control PATCH Endpoints for Albums
+app.patch(['/albums/:trackingId/access', '/album/:trackingId/access'], (req: Request, res: Response) => {
+  const { trackingId } = req.params;
+  const { isFree, isVip } = req.body;
+  albumAccessOverrides.set(trackingId, {
+    isFree: Boolean(isFree),
+    isVip: Boolean(isVip),
+  });
+  return res.json({
+    success: true,
+    message: 'Statut d\'accès de l\'album mis à jour ✅',
+    trackingId,
+    isFree: Boolean(isFree),
+    isVip: Boolean(isVip),
+    isOverridden: true,
+  });
+});
+
+app.patch(['/albums/:trackingId/reset', '/album/:trackingId/reset'], (req: Request, res: Response) => {
+  const { trackingId } = req.params;
+  albumAccessOverrides.delete(trackingId);
+  return res.json({
+    success: true,
+    message: 'Album réinitialisé à la règle par défaut (1er album gratuit, autres VIP) ↺',
+    trackingId,
+    isOverridden: false,
+  });
+});
+
+// Access Control PATCH Endpoints for Songs
+app.patch(['/song/:trackingId/access', '/songs/:trackingId/access'], (req: Request, res: Response) => {
+  const { trackingId } = req.params;
+  const { isFree, isVip } = req.body;
+  songAccessOverrides.set(trackingId, {
+    isFree: Boolean(isFree),
+    isVip: Boolean(isVip),
+  });
+  return res.json({
+    success: true,
+    message: 'Statut d\'accès du morceau mis à jour ✅',
+    trackingId,
+    isFree: Boolean(isFree),
+    isVip: Boolean(isVip),
+    isOverridden: true,
+  });
+});
+
+app.patch(['/song/:trackingId/reset', '/songs/:trackingId/reset'], (req: Request, res: Response) => {
+  const { trackingId } = req.params;
+  songAccessOverrides.delete(trackingId);
+  return res.json({
+    success: true,
+    message: 'Morceau réinitialisé à la règle par défaut ↺',
+    trackingId,
+    isOverridden: false,
+  });
+});
+
 // Proxy Middleware for /song, /playlist, /album, /albums, /notification, /user, /categorie, /categories, /stats
 app.use(['/song', '/playlist', '/album', '/albums', '/notification', '/user', '/categorie', '/categories', '/category', '/stats'], async (req: Request, res: Response, next) => {
   if (backendMode === 'mock') {
+    return next();
+  }
+
+  // Intercept access control and reset routes (handled locally)
+  if (req.originalUrl.includes('/access') || req.originalUrl.includes('/reset')) {
     return next();
   }
 
@@ -566,6 +718,14 @@ app.use(['/song', '/playlist', '/album', '/albums', '/notification', '/user', '/
 
     if (contentType.includes('application/json')) {
       const json = await response.json();
+      // If fetching all albums, enrich with access calculation
+      if ((req.originalUrl.includes('/albums/all') || req.originalUrl.includes('/album/all')) && Array.isArray(json)) {
+        return res.json(enrichAlbumsWithAccess(json));
+      }
+      // If fetching all songs, enrich with access calculation
+      if ((req.originalUrl.includes('/song/getAll') || req.originalUrl.includes('/song/all')) && Array.isArray(json)) {
+        return res.json(enrichSongsWithAccess(json));
+      }
       return res.json(json);
     } else {
       const text = await response.text();

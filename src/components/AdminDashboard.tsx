@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { AdminRoute, DashboardStats, BackendConfig, Song } from '../types';
+import { AdminRoute, DashboardStats, BackendConfig, Song, Artist } from '../types';
 import {
   Music,
   Disc,
@@ -36,6 +36,7 @@ interface AdminDashboardProps {
   backendConfig?: BackendConfig;
   onOpenSwaggerSettings?: () => void;
   songs?: Song[];
+  artists?: Artist[];
   onPlaySong?: (song: Song) => void;
   showEndpoints?: boolean;
 }
@@ -46,6 +47,7 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
   backendConfig,
   onOpenSwaggerSettings,
   songs = [],
+  artists = [],
   onPlaySong,
   showEndpoints = false,
 }) => {
@@ -129,7 +131,7 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
           </div>
           <div className="hidden sm:flex items-center gap-1.5 px-3 py-1.5 rounded-full bg-white/20 text-xs font-medium backdrop-blur-sm border border-white/20">
             <Radio size={14} className="text-white animate-pulse" />
-            <span>{showEndpoints ? 'Swagger 8081' : 'Catalogue en ligne'}</span>
+            <span>{showEndpoints ? 'Swagger Render' : 'Catalogue en ligne'}</span>
           </div>
         </div>
       </div>
@@ -145,7 +147,7 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
               <div className="flex items-center gap-1.5">
                 <span className="font-bold text-gray-900">Swagger OpenAPI :</span>
                 <span className="font-mono text-gray-500 truncate">
-                  {backendConfig?.swaggerUrl || 'http://localhost:8081/swagger-ui/index.html'}
+                  {backendConfig?.swaggerUrl || 'https://titan-tune-reset.onrender.com/swagger-ui/index.html'}
                 </span>
               </div>
               <div className="flex items-center gap-2 mt-0.5 text-[11px]">
@@ -160,8 +162,8 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
                     }`}
                   />
                   {backendConfig?.isConnected
-                    ? `Connecté en direct (${backendConfig.latency}ms)`
-                    : 'Backend 8081 hors-ligne (Simulation locale active)'}
+                    ? `Connecté à Render (${backendConfig.latency}ms)`
+                    : 'Backend Render en cours de connexion'}
                 </span>
               </div>
             </div>
@@ -186,7 +188,7 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
             </button>
 
             <a
-              href={backendConfig?.swaggerUrl || 'http://localhost:8081/swagger-ui/index.html'}
+              href={backendConfig?.swaggerUrl || 'https://titan-tune-reset.onrender.com/swagger-ui/index.html'}
               target="_blank"
               rel="noreferrer"
               className="px-3 py-1.5 rounded-xl bg-[#85EA2D] hover:bg-[#77d526] text-gray-950 font-bold transition flex items-center gap-1 text-xs shadow-xs"
@@ -222,9 +224,9 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
             <span>Artistes</span>
             <UserCheck size={14} className="text-[#FF8A00] group-hover:scale-110 transition-transform" />
           </div>
-          <div className="text-xl font-bold text-gray-900 mt-1">{stats.artistsCount || 3}</div>
+          <div className="text-xl font-bold text-gray-900 mt-1">{stats.artistsCount !== undefined ? stats.artistsCount : artists.length}</div>
           <div className="text-[10px] text-orange-600 font-medium mt-0.5 flex items-center gap-1">
-            <KeyRound size={10} /> {showEndpoints ? '/user/register' : 'Comptes actifs'}
+            <KeyRound size={10} /> {showEndpoints ? '/user/allArtist' : 'Comptes enregistrés'}
           </div>
         </button>
 
@@ -680,6 +682,104 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
         )}
       </div>
 
+      {/* ======================================================== */}
+      {/* SECTION: ARTISTES DU LABEL ENREGISTRÉS */}
+      {/* ======================================================== */}
+      <div className="space-y-3">
+        <div className="flex items-center justify-between px-1">
+          <div className="flex items-center gap-2">
+            <Users size={16} className="text-[#FF8A00]" />
+            <h3 className="text-xs font-semibold text-gray-700 uppercase tracking-wider">
+              Artistes Enregistrés ({artists.length})
+            </h3>
+            {showEndpoints && (
+              <span className="text-[10px] font-mono text-emerald-700 bg-emerald-50 px-2 py-0.5 rounded-full border border-emerald-200">
+                GET /user/allArtist
+              </span>
+            )}
+          </div>
+          <div className="flex items-center gap-2">
+            <button
+              onClick={() => onNavigate('register_artist')}
+              className="px-2.5 py-1 rounded-xl bg-orange-50 hover:bg-orange-100 text-[#FF8A00] font-semibold text-xs transition flex items-center gap-1 cursor-pointer"
+            >
+              <UserCheck size={13} />
+              <span>+ Nouvel Artiste</span>
+            </button>
+            <button
+              onClick={() => onNavigate('manage_artists')}
+              className="text-xs text-gray-500 hover:text-black font-medium transition flex items-center gap-1 cursor-pointer"
+            >
+              <span>Annuaire complet</span>
+              <ChevronRight size={13} />
+            </button>
+          </div>
+        </div>
+
+        {/* Grille des cartes artistes */}
+        {artists.length === 0 ? (
+          <div className="bg-white p-6 rounded-2xl border border-dashed border-gray-200 text-center space-y-2">
+            <UserCheck size={28} className="text-gray-300 mx-auto" />
+            <p className="text-sm font-semibold text-gray-700">Aucun artiste enregistré pour le moment</p>
+            <p className="text-xs text-gray-400">Inscrivez vos artistes pour leur rattacher leurs albums et leurs chansons.</p>
+            <button
+              onClick={() => onNavigate('register_artist')}
+              className="mt-2 px-3 py-1.5 rounded-xl bg-[#FF8A00] text-white text-xs font-semibold hover:bg-orange-600 transition cursor-pointer"
+            >
+              + Inscrire un premier artiste
+            </button>
+          </div>
+        ) : (
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
+            {artists.map((artist) => (
+              <div
+                key={artist.trackingId || artist.alias}
+                className="bg-white p-3.5 rounded-2xl border border-gray-100 shadow-2xs hover:shadow-md transition flex flex-col justify-between group"
+              >
+                <div className="flex items-start gap-3 min-w-0">
+                  <div className="w-10 h-10 rounded-xl bg-gradient-to-tr from-[#FF8A00] to-[#FFB03A] text-white font-bold text-sm flex items-center justify-center shrink-0 shadow-2xs group-hover:scale-105 transition-transform">
+                    {artist.alias ? artist.alias.charAt(0).toUpperCase() : (artist.firstName ? artist.firstName.charAt(0).toUpperCase() : 'A')}
+                  </div>
+                  <div className="min-w-0 flex-1">
+                    <div className="flex items-center justify-between gap-1">
+                      <h4 className="text-sm font-bold text-gray-900 truncate">
+                        {artist.alias || `${artist.firstName} ${artist.lastName}`}
+                      </h4>
+                      <span className="text-[10px] font-mono text-emerald-700 bg-emerald-50 px-1.5 py-0.5 rounded-md border border-emerald-200 shrink-0">
+                        Actif
+                      </span>
+                    </div>
+                    {(artist.firstName || artist.lastName) && (
+                      <p className="text-xs text-gray-500 truncate">
+                        {artist.firstName} {artist.lastName}
+                      </p>
+                    )}
+                    <p className="text-[11px] text-gray-400 truncate mt-0.5">
+                      {artist.email || artist.phone || 'Pas de coordonnées'}
+                    </p>
+                  </div>
+                </div>
+
+                <div className="mt-3 pt-2.5 border-t border-gray-100 flex items-center justify-between text-xs">
+                  <div className="flex items-center gap-1 text-[11px] font-mono text-gray-600 bg-gray-50 px-2 py-0.5 rounded-md" title="Code d'accès">
+                    <KeyRound size={11} className="text-[#FF8A00]" />
+                    <span className="truncate max-w-[110px]">{artist.connectionCode || 'ART-KEY'}</span>
+                  </div>
+                  <button
+                    onClick={() => onNavigate('add_album')}
+                    className="text-xs text-[#00BFA6] hover:text-teal-700 font-semibold flex items-center gap-1 transition cursor-pointer"
+                    title="Créer un album rattaché à cet artiste"
+                  >
+                    <Disc size={12} />
+                    <span>Créer album</span>
+                  </button>
+                </div>
+              </div>
+            ))}
+          </div>
+        )}
+      </div>
+
       {/* Section 1: Ajouter du contenu */}
       <div className="space-y-3">
         <h3 className="text-xs font-semibold text-gray-600 uppercase tracking-wider px-1">
@@ -844,6 +944,62 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
         </div>
       </div>
 
+      {/* Section 2.5: Gestion des accès Premium VIP / Gratuit (Nouveau / Ancien) */}
+      <div className="space-y-3">
+        <div className="flex items-center justify-between px-1">
+          <div className="flex items-center gap-2">
+            <h3 className="text-xs font-bold text-gray-700 uppercase tracking-wider">
+              Monétisation & Règles d&apos;Accès (1er Gratuit 🆓 • Reste VIP 🔒)
+            </h3>
+            <span className="text-[10px] bg-orange-100 text-[#FF8A00] font-bold px-2 py-0.5 rounded-full">
+              Nouveau
+            </span>
+          </div>
+        </div>
+
+        <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+          <div
+            onClick={() => onNavigate('album_access_manager')}
+            className="bg-white p-4 rounded-2xl border border-gray-100 shadow-sm hover:shadow-md transition-all duration-200 cursor-pointer flex items-center justify-between group active:scale-[0.99]"
+          >
+            <div className="flex items-center gap-3.5 min-w-0">
+              <div className="w-12 h-12 rounded-xl bg-teal-500/10 text-teal-600 flex items-center justify-center shrink-0 group-hover:bg-teal-500/20 transition text-xl">
+                🎵
+              </div>
+              <div className="min-w-0">
+                <h4 className="text-[15px] font-semibold text-gray-900 group-hover:text-teal-600 transition truncate">
+                  Accès Albums (Gratuit & VIP)
+                </h4>
+                <p className="text-xs text-gray-500 mt-0.5">
+                  1er album gratuit par artiste • Verrouillage des suivants • Forcer / Reset
+                </p>
+              </div>
+            </div>
+            <ChevronRight className="text-gray-400 group-hover:text-gray-600 group-hover:translate-x-0.5 transition shrink-0" size={18} />
+          </div>
+
+          <div
+            onClick={() => onNavigate('song_access_manager')}
+            className="bg-white p-4 rounded-2xl border border-gray-100 shadow-sm hover:shadow-md transition-all duration-200 cursor-pointer flex items-center justify-between group active:scale-[0.99]"
+          >
+            <div className="flex items-center gap-3.5 min-w-0">
+              <div className="w-12 h-12 rounded-xl bg-indigo-500/10 text-indigo-600 flex items-center justify-center shrink-0 group-hover:bg-indigo-500/20 transition text-xl">
+                🎤
+              </div>
+              <div className="min-w-0">
+                <h4 className="text-[15px] font-semibold text-gray-900 group-hover:text-indigo-600 transition truncate">
+                  Accès Morceaux (Gratuit & VIP)
+                </h4>
+                <p className="text-xs text-gray-500 mt-0.5">
+                  1er titre gratuit par artiste • Morceaux premium • Écoute directe
+                </p>
+              </div>
+            </div>
+            <ChevronRight className="text-gray-400 group-hover:text-gray-600 group-hover:translate-x-0.5 transition shrink-0" size={18} />
+          </div>
+        </div>
+      </div>
+
       {/* Section 3: Gestion & Exploration */}
       <div className="space-y-3">
         <div className="flex items-center justify-between px-1">
@@ -897,7 +1053,7 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
             <div className="min-w-0">
               <div className="flex items-center gap-2">
                 <h4 className="text-[15px] font-semibold text-gray-900 group-hover:text-[#FF8A00] transition">
-                  Annuaire des Artistes & Accès ({stats.artistsCount || 3})
+                  Annuaire des Artistes & Accès ({stats.artistsCount !== undefined ? stats.artistsCount : artists.length})
                 </h4>
                 {showEndpoints && (
                   <span className="text-[10px] font-bold px-1.5 py-0.5 rounded bg-orange-50 text-[#FF8A00] border border-orange-200">
